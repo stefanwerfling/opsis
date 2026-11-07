@@ -2,6 +2,7 @@ export * from './domain/actor.js';
 export * from './domain/common.js';
 export * from './domain/errors.js';
 export * from './domain/events.js';
+export * from './domain/geometry.js';
 export * from './domain/ids.js';
 export * from './domain/project.js';
 export * from './domain/screenshot.js';

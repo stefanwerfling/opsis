@@ -24,7 +24,8 @@ Commit.
 5. Use-Cases: Projekte CRUD, UiView anlegen und Pfad ändern, Screenshot hochladen
    (Mensch), Session anlegen. Status-Automat + Akteursregeln. Tests.
 6. Fastify-REST `/api/v1`, Fehler-Mapping, pino, SSE-Endpunkt.
-7. Web: Projektliste, UI-Liste, Screenshot-Upload, Canvas mit Zoom/Pan (Konva).
+7. Web (Vanilla TypeScript, kein Framework): Projektliste, UI-Liste, Screenshot-Upload,
+   Canvas mit Zoom/Pan (eigener Canvas-2D-Code). Server liefert den Build mit CSP aus.
 
 ## Phase 2 – Komponentenmodell
 
@@ -81,9 +82,9 @@ Canvas-Virtualisierung der Overlays bei Bedarf), Security-Review, Dokumentation
 
 ## Teststrategie (Kurzfassung)
 
-| Ebene       | Werkzeug                                                   | Schwerpunkt                                                                          |
-| ----------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Domain      | Vitest, reine Funktionen                                   | Statusautomat, Baumoperationen, Geometrie, Diff, Vollständigkeit, Prompt (Snapshots) |
-| Application | Vitest + In-Memory-SQLite                                  | Use-Cases, Transaktionen, Konflikte, Unveränderlichkeit, Zugriffskontrolle           |
-| Adapter     | Vitest + `fastify.inject` / MCP-Client                     | REST- und MCP-Verträge, Uploads, Fehlercodes                                         |
-| Editor      | Vitest + Testing Library (Logik), Playwright (Interaktion) | Markieren, Verschieben, Zoom-Koordinaten                                             |
+| Ebene       | Werkzeug                                        | Schwerpunkt                                                                          |
+| ----------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Domain      | Vitest, reine Funktionen                        | Statusautomat, Baumoperationen, Geometrie, Diff, Vollständigkeit, Prompt (Snapshots) |
+| Application | Vitest + In-Memory-SQLite                       | Use-Cases, Transaktionen, Konflikte, Unveränderlichkeit, Zugriffskontrolle           |
+| Adapter     | Vitest + `fastify.inject` / MCP-Client          | REST- und MCP-Verträge, Uploads, Fehlercodes                                         |
+| Editor      | Vitest (reine Module), Playwright (Interaktion) | Markieren, Verschieben, Zoom-Koordinaten                                             |

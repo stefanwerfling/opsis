@@ -39,7 +39,11 @@ const main = async (): Promise<void> => {
     bus,
     allowedHosts: config.allowedHosts,
     logger: { level: config.logLevel },
+    ...(config.webRoot === undefined ? {} : { webRoot: config.webRoot }),
   });
+  if (config.webRoot === undefined) {
+    app.log.warn('web UI not built (npm run build) – serving the API only');
+  }
   reportListenerError = (error, eventType) => {
     app.log.error({ err: error, event: eventType }, 'event listener failed');
   };

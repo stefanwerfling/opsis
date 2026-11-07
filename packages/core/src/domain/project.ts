@@ -8,8 +8,9 @@ import {
   type Timestamp,
 } from './common.js';
 
-export const PROMPT_LANGUAGES = ['en', 'de'] as const;
-export type PromptLanguage = (typeof PROMPT_LANGUAGES)[number];
+import { PROMPT_LANGUAGES, type PromptLanguage } from './vocabulary.js';
+
+export { PROMPT_LANGUAGES, type PromptLanguage } from './vocabulary.js';
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const ProjectSlugSchema = z

@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface OpsisConfig {
   readonly host: string;
@@ -7,7 +9,17 @@ export interface OpsisConfig {
   /** Additional host names accepted in the Host header (DNS-rebinding protection). */
   readonly allowedHosts: readonly string[];
   readonly logLevel: string;
+  /** Built web UI; undefined when it has not been built (API-only operation). */
+  readonly webRoot: string | undefined;
 }
+
+/** packages/server/{src,dist}/config.* → packages/web/dist */
+const DEFAULT_WEB_ROOT = fileURLToPath(new URL('../../web/dist', import.meta.url));
+
+const resolveWebRoot = (configured: string | undefined): string | undefined => {
+  const root = resolve(configured ?? DEFAULT_WEB_ROOT);
+  return existsSync(join(root, 'index.html')) ? root : undefined;
+};
 
 const parsePort = (value: string | undefined, fallback: number): number => {
   if (value === undefined || value === '') return fallback;
@@ -25,4 +37,5 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): OpsisConfig =>
     .map((host) => host.trim().toLowerCase())
     .filter((host) => host.length > 0),
   logLevel: env['OPSIS_LOG_LEVEL'] ?? 'info',
+  webRoot: resolveWebRoot(env['OPSIS_WEB_DIR']),
 });
