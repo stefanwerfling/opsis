@@ -1,0 +1,42 @@
+{
+  "name": "opsis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OPSIS \u2013 visual UI specification system with MCP interface",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b packages/server",
+    "typecheck": "tsc -b packages/server && tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "start": "node packages/server/dist/main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefanwerfling/opsis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stefanwerfling/opsis/issues"
+  },
+  "homepage": "https://github.com/stefanwerfling/opsis#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}

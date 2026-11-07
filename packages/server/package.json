@@ -1,0 +1,22 @@
+{
+  "name": "@opsis/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OPSIS server: persistence, file storage, REST API and MCP endpoint",
+  "bin": {
+    "opsis": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^10.1.8",
+    "@opsis/core": "*",
+    "fastify": "^5.12.8",
+    "file-type": "^22.3.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  }
+}
