@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { InMemoryServerEventBus, type ServerEvent } from '@modelcontextprotocol/server';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -18,6 +19,7 @@ import { createTestEnv, makeImage, type TestEnv } from '../testing/support.js';
 let env: TestEnv;
 let app: FastifyInstance;
 let url: string;
+let serverEvents: ServerEvent[];
 const clients: Client[] = [];
 
 beforeEach(async () => {
@@ -27,6 +29,12 @@ beforeEach(async () => {
     bus: env.bus,
     publicUrl: 'http://127.0.0.1:4777',
     mcpWait: { pollMs: 50, progressMs: 40 },
+    mcpEvents: (() => {
+      const bus = new InMemoryServerEventBus();
+      serverEvents = [];
+      bus.subscribe((event) => serverEvents.push(event));
+      return bus;
+    })(),
   });
   await app.listen({ host: '127.0.0.1', port: 0 });
   url = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}/mcp`;
@@ -425,5 +433,129 @@ describe('MCP endpoint', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     expect(env.bus.listenerCount).toBe(baseline);
+  });
+});
+
+describe('MCP resources', () => {
+  const read = async (client: Client, uri: string) => (await client.readResource({ uri })).contents[0];
+  const readJson = async <T = Record<string, unknown>>(client: Client, uri: string) => {
+    const content = await read(client, uri);
+    if (content === undefined || !('text' in content)) throw new Error(`no text for ${uri}`);
+    expect(content.mimeType).toBe('application/json');
+    return JSON.parse(content.text) as T;
+  };
+
+  const setup = async () => {
+    const owner = await newAgent('owner');
+    const { project } = await ok<{ project: { project_id: string } }>(owner.client, 'opsis_create_project', {
+      name: 'Shop',
+    });
+    const image = await base64Image();
+    const submitted = await ok<{ session_id: string; screenshot_id: string }>(
+      owner.client,
+      'opsis_submit_screenshot',
+      { project_id: project.project_id, ui_path: '/dashboard', image_base64: image },
+    );
+    return { owner: owner.client, projectId: project.project_id, image, ...submitted };
+  };
+
+  it('offers the documented templates and lists only accessible resources', async () => {
+    const { owner, projectId, session_id } = await setup();
+    const { resourceTemplates } = await owner.listResourceTemplates();
+    expect(resourceTemplates.map((template) => template.uriTemplate).sort()).toEqual([
+      'opsis://projects/{project_id}',
+      'opsis://projects/{project_id}/ui/{ui_id}',
+      'opsis://projects/{project_id}/ui/{ui_id}/history',
+      'opsis://projects/{project_id}/ui/{ui_id}/versions/{version_no}',
+      'opsis://screenshots/{screenshot_id}',
+      'opsis://sessions/{session_id}',
+      'opsis://sessions/{session_id}/prompt',
+      'opsis://sessions/{session_id}/specification',
+    ]);
+    const { resources } = await owner.listResources();
+    expect(resources.map((resource) => resource.uri).sort()).toEqual([
+      `opsis://projects/${projectId}`,
+      `opsis://projects/${projectId}/ui/ui-dashboard`,
+      `opsis://sessions/${session_id}`,
+    ]);
+    const other = await newAgent('other');
+    expect((await other.client.listResources()).resources).toEqual([]);
+  });
+
+  it('reads session, specification, prompt, history, version and screenshot', async () => {
+    const { owner, projectId, session_id, screenshot_id, image } = await setup();
+    const session = await readJson<{ session: { status: string }; next_action: string }>(
+      owner,
+      `opsis://sessions/${session_id}`,
+    );
+    expect(session.session.status).toBe('awaiting_review');
+    await expect(read(owner, `opsis://sessions/${session_id}/specification`)).rejects.toThrow(/NOT_READY/);
+    await expect(read(owner, `opsis://sessions/${session_id}/prompt`)).rejects.toThrow(/NOT_READY/);
+
+    humanReleases(session_id, screenshot_id);
+    const spec = await readJson<{ format: string }>(owner, `opsis://sessions/${session_id}/specification`);
+    expect(spec.format).toBe('opsis-specification/v1');
+    const prompt = await read(owner, `opsis://sessions/${session_id}/prompt`);
+    expect(prompt?.mimeType).toBe('text/markdown');
+    expect(prompt && 'text' in prompt ? prompt.text : '').toContain('Header');
+    expect(getSession(env.ctx, LOCAL_HUMAN, session_id).session.status).toBe('delivered');
+
+    const history = await readJson<{ versions: { version_no: number }[] }>(
+      owner,
+      `opsis://projects/${projectId}/ui/ui-dashboard/history`,
+    );
+    expect(history.versions.map((version) => version.version_no)).toEqual([1]);
+    const version = await readJson<{ version: { version_no: number }; specification: { format: string } }>(
+      owner,
+      `opsis://projects/${projectId}/ui/ui-dashboard/versions/1`,
+    );
+    expect(version).toMatchObject({
+      version: { version_no: 1 },
+      specification: { format: 'opsis-specification/v1' },
+    });
+    await expect(read(owner, `opsis://projects/${projectId}/ui/ui-dashboard/versions/2`)).rejects.toThrow();
+
+    const screenshot = await read(owner, `opsis://screenshots/${screenshot_id}`);
+    expect(screenshot?.mimeType).toBe('image/png');
+    expect(screenshot && 'blob' in screenshot ? screenshot.blob : '').toBe(image);
+  });
+
+  it('answers every resource of another project as not found', async () => {
+    const { projectId, session_id, screenshot_id } = await setup();
+    humanReleases(session_id, screenshot_id);
+    const { client } = await newAgent('intruder');
+    const uris = [
+      `opsis://projects/${projectId}`,
+      `opsis://projects/${projectId}/ui/ui-dashboard`,
+      `opsis://projects/${projectId}/ui/ui-dashboard/history`,
+      `opsis://projects/${projectId}/ui/ui-dashboard/versions/1`,
+      `opsis://sessions/${session_id}`,
+      `opsis://sessions/${session_id}/specification`,
+      `opsis://sessions/${session_id}/prompt`,
+      `opsis://screenshots/${screenshot_id}`,
+    ];
+    for (const uri of uris) {
+      const error = await read(client, uri).then(
+        () => undefined,
+        (thrown: unknown) => thrown as { code?: number; data?: unknown },
+      );
+      expect([uri, error?.code, error?.data]).toEqual([uri, -32602, { uri }]);
+    }
+    expect(getSession(env.ctx, LOCAL_HUMAN, session_id).session.status).toBe('ready');
+  });
+
+  it('publishes resource updates for status changes and new versions', async () => {
+    const { projectId, session_id, screenshot_id } = await setup();
+    serverEvents.length = 0;
+    humanReleases(session_id, screenshot_id);
+    const uris = serverEvents.filter((event) => event.kind === 'resource_updated').map((event) => event.uri);
+    expect(uris).toEqual(
+      expect.arrayContaining([
+        `opsis://sessions/${session_id}`,
+        `opsis://sessions/${session_id}/specification`,
+        `opsis://sessions/${session_id}/prompt`,
+        `opsis://projects/${projectId}/ui/ui-dashboard/history`,
+      ]),
+    );
   });
 });

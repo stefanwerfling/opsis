@@ -44,6 +44,7 @@ import {
   type Actor,
   type Metadata,
 } from '@opsis/core';
+import { registerResources } from './resources.js';
 import {
   nextAction,
   presentProject,
@@ -184,11 +185,17 @@ export interface McpServerOptions extends PresenterContext {
   readonly wait?: { readonly pollMs?: number; readonly progressMs?: number };
   /** Aborted when the caller cancels or disconnects (see InflightCalls in route.ts). */
   readonly signal?: AbortSignal;
+  /**
+   * Resource subscriptions need a long-lived stream: only 2026-07-28 clients have one
+   * (`subscriptions/listen`); the stateless 2025 fallback cannot deliver updates.
+   */
+  readonly subscriptions?: boolean;
 }
 
 export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServer => {
   const { ctx } = p;
   const server = new McpServer(MCP_SERVER_INFO, {
+    capabilities: { resources: { subscribe: p.subscriptions === true, listChanged: false } },
     instructions:
       'OPSIS turns screenshots into human-approved UI specifications. Submit a screenshot ' +
       '(opsis_submit_screenshot), give the editor_url to the human, wait with ' +
@@ -799,5 +806,6 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     },
   );
 
+  registerResources(server, p, actor);
   return server;
 };

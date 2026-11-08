@@ -1,9 +1,40 @@
-import { createMcpHandler, type McpHttpHandler } from '@modelcontextprotocol/server';
+import { createMcpHandler, type McpHttpHandler, type ServerEventBus } from '@modelcontextprotocol/server';
 import { toNodeHandler, type NodeIncomingMessageLike } from '@modelcontextprotocol/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { IMAGE_LIMITS, OpsisError, type Actor, type AppContext } from '@opsis/core';
+import { IMAGE_LIMITS, OpsisError, type Actor, type AppContext, type DomainEvent } from '@opsis/core';
 import { requireAgent } from '../http/agent-auth.js';
+import { resourceUri } from './resources.js';
 import { createOpsisMcpServer, type McpServerOptions } from './server.js';
+
+/** Which resources a domain event changes (`notifications/resources/updated`, 06 §4). */
+export const updatedResources = (ctx: AppContext, event: DomainEvent): string[] => {
+  const uiId = (uiViewId: string) => ctx.repos.uiViews.findById(uiViewId)?.uiId;
+  switch (event.type) {
+    case 'ProjectChanged':
+      return [resourceUri.project(event.projectId)];
+    case 'UiViewChanged': {
+      const id = uiId(event.uiViewId);
+      return id === undefined ? [] : [resourceUri.uiView(event.projectId, id)];
+    }
+    case 'UiVersionCreated': {
+      const id = uiId(event.uiViewId);
+      return id === undefined ? [] : [resourceUri.uiHistory(event.projectId, id)];
+    }
+    case 'SessionChanged':
+      return [resourceUri.session(event.sessionId)];
+    case 'SessionStatusChanged':
+      return [
+        resourceUri.session(event.sessionId),
+        ...(event.to === 'ready'
+          ? [resourceUri.specification(event.sessionId), resourceUri.prompt(event.sessionId)]
+          : []),
+      ];
+    case 'AgentChanged':
+    case 'ScreenshotSubmitted':
+    case 'DraftChanged':
+      return [];
+  }
+};
 
 /** A base64 image of the maximum size plus the JSON-RPC envelope and metadata. */
 export const MCP_BODY_LIMIT = Math.ceil(IMAGE_LIMITS.maxBytes / 3) * 4 + 1024 * 1024;
@@ -14,6 +45,8 @@ export interface McpRouteOptions {
   /** Host names accepted in an `Origin` header (DNS-rebinding protection, 06 §1). */
   readonly allowedOriginHosts: readonly string[];
   readonly wait?: McpServerOptions['wait'];
+  /** Change-event bus of `subscriptions/listen` (tests observe it). */
+  readonly serverEvents?: ServerEventBus;
 }
 
 const actorOf = (extra: Record<string, unknown> | undefined): Actor => {
@@ -87,7 +120,7 @@ export const registerMcpRoute = (
   options: McpRouteOptions,
 ): McpHttpHandler => {
   const handler = createMcpHandler(
-    ({ authInfo }) => {
+    ({ authInfo, era }) => {
       const signal = signalOf(authInfo?.extra);
       return createOpsisMcpServer(
         {
@@ -95,11 +128,13 @@ export const registerMcpRoute = (
           baseUrl: options.baseUrl,
           ...(options.wait ? { wait: options.wait } : {}),
           ...(signal ? { signal } : {}),
+          subscriptions: era === 'modern',
         },
         actorOf(authInfo?.extra),
       );
     },
     {
+      ...(options.serverEvents ? { bus: options.serverEvents } : {}),
       onerror: (error) => {
         app.log.warn({ err: error }, 'mcp request failed');
       },
@@ -112,7 +147,11 @@ export const registerMcpRoute = (
     },
   });
   const inflight = new InflightCalls();
+  const unsubscribe = ctx.events.subscribe((event) => {
+    for (const uri of updatedResources(ctx, event)) handler.notify.resourceUpdated(uri);
+  });
   app.addHook('onClose', async () => {
+    unsubscribe();
     await handler.close();
   });
 

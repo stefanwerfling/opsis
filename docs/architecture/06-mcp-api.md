@@ -170,6 +170,23 @@ Server `notifications/resources/updated` für `opsis://sessions/{id}` an abonnie
 (`sendResourceUpdated`). Das ist ein zusätzlicher Benachrichtigungsweg. Der Long-Poll
 funktioniert auch ohne ihn.
 
+### Umsetzung (Phase 5, Schritt 4)
+
+- Alle acht Templates sind registriert; jeder `read` läuft über dieselben Use-Cases wie die
+  Tools. `list` liefert Projekte, UI-Ansichten und **offene** Sessions der freigegebenen
+  Projekte; die übrigen Templates haben keine Auflistung.
+- Fremde oder unbekannte IDs ergeben „resource not found“ (`-32602` mit `data: { uri }`),
+  andere Domänenfehler einen JSON-RPC-Fehler mit dem Code im Text (z. B. `NOT_READY: …`).
+- Das Lesen von `opsis://sessions/{id}/prompt` zählt wie das Tool als Auslieferung (E3).
+- Benachrichtigungen: Domain-Events werden auf Ressourcen-URIs abgebildet
+  (`SessionStatusChanged` → Session, bei `ready` auch Spezifikation und Prompt;
+  `UiVersionCreated` → History; `ProjectChanged`, `UiViewChanged`, `SessionChanged`) und
+  über `handler.notify.resourceUpdated` veröffentlicht. Zugestellt werden sie an
+  `subscriptions/listen`-Streams von Clients mit Protokoll 2026-07-28; nur für diese wird
+  `resources.subscribe` angekündigt. Der zustandslose 2025-Fallback hat keinen
+  langlebigen Stream; dort bleibt der Long-Poll der Weg. Eine Benachrichtigung enthält nur
+  die URI, der Inhalt ist weiterhin nur mit Zugriff lesbar.
+
 ## 5. Typischer Agentenablauf
 
 ```

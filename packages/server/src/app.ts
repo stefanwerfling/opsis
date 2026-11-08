@@ -2,6 +2,7 @@ import { sep } from 'node:path';
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import type { ServerEventBus } from '@modelcontextprotocol/server';
 import type { AppContext, EventBus } from '@opsis/core';
 import { MULTIPART_LIMITS, registerApiRoutes } from './http/api-routes.js';
 import { errorHandler } from './http/errors.js';
@@ -20,6 +21,8 @@ export interface BuildAppOptions {
   readonly publicUrl?: string;
   /** Timings of the MCP long poll (tests shorten them). */
   readonly mcpWait?: { readonly pollMs?: number; readonly progressMs?: number };
+  /** Change-event bus of MCP resource subscriptions (tests observe it). */
+  readonly mcpEvents?: ServerEventBus;
 }
 
 /**
@@ -56,6 +59,7 @@ export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstanc
     baseUrl: (options.publicUrl ?? 'http://127.0.0.1:4777').replace(/\/+$/, ''),
     allowedOriginHosts: allowedHosts,
     ...(options.mcpWait ? { wait: options.mcpWait } : {}),
+    ...(options.mcpEvents ? { serverEvents: options.mcpEvents } : {}),
   });
 
   app.addHook('onSend', async (_request, reply) => {
