@@ -72,6 +72,7 @@ describe('draft use cases', () => {
     const header = newId('component');
     const chart = newId('component');
     const relationId = newId('relation');
+    const conflictId = newId('conflict');
     const saved = changeDraft(env.ctx, LOCAL_HUMAN, sessionId, {
       baseRevision: 0,
       operations: [
@@ -94,6 +95,7 @@ describe('draft use cases', () => {
         },
         { op: 'updateComponent', componentId: header, hidden: true, kind: 'container' },
         { op: 'addRelation', relationId, fromComponentId: header, toComponentId: chart, kind: 'controls' },
+        { op: 'addConflict', conflictId, componentIds: [card, chart], description: 'Width unclear' },
         {
           op: 'updateDraft',
           goal: 'Sales overview',
@@ -108,6 +110,15 @@ describe('draft use cases', () => {
     expect(loaded.components.map((component) => component.name)).toEqual(['Card', 'Chart', 'CardHeader']);
     expect(loaded.components[1]?.regions).toEqual([{ screenshotId, x: 20, y: 60, width: 200, height: 100 }]);
     expect(loaded.relations[0]).toMatchObject({ kind: 'controls', description: '' });
+    expect(loaded.conflicts).toEqual([
+      {
+        id: conflictId,
+        componentIds: [card, chart],
+        description: 'Width unclear',
+        status: 'open',
+        resolution: '',
+      },
+    ]);
   });
 
   it('starts the review on the first edit and records it', async () => {

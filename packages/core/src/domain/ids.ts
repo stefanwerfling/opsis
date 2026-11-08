@@ -11,6 +11,7 @@ export const ID_PREFIXES = {
   sessionEvent: 'sev',
   component: 'cmp',
   relation: 'rel',
+  conflict: 'cfl',
   agent: 'agt',
   audit: 'aud',
 } as const;

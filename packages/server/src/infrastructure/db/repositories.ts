@@ -14,6 +14,7 @@ import {
   type AuditLog,
   type BlobRecord,
   type ComponentSpec,
+  type Conflict,
   type Draft,
   type DraftComponent,
   type DraftRepository,
@@ -527,6 +528,13 @@ const specOf = (row: Row): ComponentSpec => {
   return value;
 };
 
+const conflictsOf = (row: Row): Conflict[] => {
+  const value = json(row, 'conflicts');
+  if (!Array.isArray(value)) throw new Error('Column "conflicts" is not an array');
+  // Written only by this repository from validated drafts.
+  return value as Conflict[];
+};
+
 class SqliteDraftRepository implements DraftRepository {
   constructor(private readonly db: Database) {}
 
@@ -598,6 +606,7 @@ class SqliteDraftRepository implements DraftRepository {
       openQuestions: stringList(row, 'open_questions'),
       components,
       relations,
+      conflicts: conflictsOf(row),
       updatedAt: str(row, 'updated_at'),
     };
   }
@@ -605,18 +614,19 @@ class SqliteDraftRepository implements DraftRepository {
   save(draft: Draft): void {
     const sessionId = draft.sessionId;
     this.db.execute(
-      `INSERT INTO drafts (session_id, goal, change_summary, acceptance, open_questions, revision, updated_at)
-       VALUES (:sessionId, :goal, :changeSummary, :acceptance, :openQuestions, :revision, :updatedAt)
+      `INSERT INTO drafts (session_id, goal, change_summary, acceptance, open_questions, conflicts, revision, updated_at)
+       VALUES (:sessionId, :goal, :changeSummary, :acceptance, :openQuestions, :conflicts, :revision, :updatedAt)
        ON CONFLICT (session_id) DO UPDATE SET
          goal = excluded.goal, change_summary = excluded.change_summary,
          acceptance = excluded.acceptance, open_questions = excluded.open_questions,
-         revision = excluded.revision, updated_at = excluded.updated_at`,
+         conflicts = excluded.conflicts, revision = excluded.revision, updated_at = excluded.updated_at`,
       {
         sessionId,
         goal: draft.goal,
         changeSummary: draft.changeSummary,
         acceptance: JSON.stringify(draft.acceptance),
         openQuestions: JSON.stringify(draft.openQuestions),
+        conflicts: JSON.stringify(draft.conflicts),
         revision: draft.revision,
         updatedAt: draft.updatedAt,
       },

@@ -56,10 +56,15 @@ export type SpecGroup = keyof typeof SPEC_GROUPS;
 export const SPEC_GROUP_NAMES = Object.keys(SPEC_GROUPS) as SpecGroup[];
 export type SpecField<G extends SpecGroup = SpecGroup> = (typeof SPEC_GROUPS)[G][number];
 
+/** Status of a contradiction the human recorded (requirements §10: contradictions stay visible). */
+export const CONFLICT_STATUSES = ['open', 'resolved'] as const;
+export type ConflictStatus = (typeof CONFLICT_STATUSES)[number];
+
 /** Limits for draft contents (kept generous; they protect the server, not the user). */
 export const DRAFT_LIMITS = {
   maxComponents: 2000,
   maxRelations: 5000,
+  maxConflicts: 500,
   maxNameLength: 200,
   maxTextLength: 10_000,
   maxListItems: 200,

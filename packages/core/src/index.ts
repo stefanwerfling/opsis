@@ -1,5 +1,6 @@
 export * from './domain/actor.js';
 export * from './domain/common.js';
+export * from './domain/completeness.js';
 export * from './domain/draft.js';
 export * from './domain/errors.js';
 export * from './domain/events.js';

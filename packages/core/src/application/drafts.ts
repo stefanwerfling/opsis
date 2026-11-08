@@ -4,6 +4,7 @@ import { applyDraftOperations, emptyDraft, type Draft, type DraftOperation } fro
 import { OpsisError } from '../domain/errors.js';
 import {
   COMPONENT_KINDS,
+  CONFLICT_STATUSES,
   DRAFT_LIMITS,
   RELATION_KINDS,
   SPEC_GROUP_NAMES,
@@ -85,6 +86,21 @@ export const DraftOperationSchema = z.discriminatedUnion('op', [
     description: Text.optional(),
   }),
   z.strictObject({ op: z.literal('deleteRelation'), relationId: Id }),
+  z.strictObject({
+    op: z.literal('addConflict'),
+    conflictId: Id,
+    componentIds: z.array(Id).max(DRAFT_LIMITS.maxListItems),
+    description: Text,
+  }),
+  z.strictObject({
+    op: z.literal('updateConflict'),
+    conflictId: Id,
+    componentIds: z.array(Id).max(DRAFT_LIMITS.maxListItems).optional(),
+    description: Text.optional(),
+    status: z.enum(CONFLICT_STATUSES).optional(),
+    resolution: Text.optional(),
+  }),
+  z.strictObject({ op: z.literal('deleteConflict'), conflictId: Id }),
   z.strictObject({
     op: z.literal('updateDraft'),
     goal: Text.optional(),

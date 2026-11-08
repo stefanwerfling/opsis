@@ -196,6 +196,14 @@ später ergänzt werden, ohne bestehende Daten zu brechen.)
 
    Die Regeln liefern **Hinweise**. Ob tatsächlich ein Widerspruch vorliegt, entscheidet der Mensch.
 
+Umsetzung (Phase 3): Manuelle Widersprüche sind `Conflict { id (cfl_…), componentIds[],
+description, status: open|resolved, resolution }` im Draft (Spalte `drafts.conflicts`),
+geändert über `addConflict`, `updateConflict` und `deleteConflict`. Zum Auflösen ist ein
+Begründungstext Pflicht. Wird eine beteiligte Komponente gelöscht, bleibt der Konflikt
+erhalten und verliert nur den Verweis. Die Geometrie-Regel prüft „Region des Kindes liegt
+nicht vollständig in der Region des Elternteils auf demselben Screenshot“, weil Layoutangaben
+Freitext sind und `contained` nicht maschinell erkennbar ist.
+
 ## 4. Vollständigkeitsbericht (`CompletenessReport`)
 
 Ein reine Funktion `assessCompleteness(draft) → { blocking[], warnings[], unknownFields[] }`.
@@ -204,6 +212,14 @@ Ein reine Funktion `assessCompleteness(draft) → { blocking[], warnings[], unkn
   ins Leere, Komponente ohne Name.
 - **warnings**: Komponente ohne Beschreibung oder ohne Akzeptanzkriterium,
   `auto_detected`-Werte nicht bestätigt, offene Fragen vorhanden.
+
+Jeder Eintrag hat eine stabile ID aus Code und Bezug (z. B. `missing_description:cmp_…`),
+damit Bestätigungen gültig bleiben, solange dasselbe Problem besteht. Codes:
+`no_components`, `assignment_unconfirmed`, `open_conflict`, `dangling_relation`,
+`unnamed_component` (blockierend) sowie `missing_description`, `missing_acceptance`,
+`unconfirmed_auto_detected`, `open_questions`, `region_outside_parent`,
+`disabled_on_visual_area` (Warnungen). `unknownFields` listet je Komponente alle nicht
+spezifizierten Felder (`gruppe.feld`).
 
 Freigabe ist möglich, wenn `blocking` leer ist **und** der Mensch alle `warnings` explizit
 bestätigt („mit offenen Punkten freigeben“). Die bestätigten Punkte landen in der

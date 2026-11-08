@@ -10,10 +10,12 @@ import { clampRect, type Rect, type Size } from './geometry.js';
 import { hasIdPrefix } from './ids.js';
 import {
   COMPONENT_KINDS,
+  CONFLICT_STATUSES,
   DRAFT_LIMITS,
   RELATION_KINDS,
   SPEC_GROUPS,
   type ComponentKind,
+  type ConflictStatus,
   type RelationKind,
   type SpecField,
   type SpecGroup,
@@ -57,6 +59,20 @@ export interface Relation {
   readonly description: string;
 }
 
+/**
+ * A contradiction recorded by the human (architecture 02 §3, way 1). Open conflicts block
+ * the release; a resolved conflict keeps its resolution so the decision stays traceable.
+ */
+export interface Conflict {
+  readonly id: string;
+  /** Components involved (may be empty for draft-wide contradictions). */
+  readonly componentIds: readonly string[];
+  readonly description: string;
+  readonly status: ConflictStatus;
+  /** How the human resolved it; empty while open. */
+  readonly resolution: string;
+}
+
 export interface Draft {
   readonly sessionId: string;
   /** Incremented with every saved change; used for optimistic locking. */
@@ -68,6 +84,7 @@ export interface Draft {
   /** Components in tree order (parents before children, siblings by `order`). */
   readonly components: readonly DraftComponent[];
   readonly relations: readonly Relation[];
+  readonly conflicts: readonly Conflict[];
   readonly updatedAt: string;
 }
 
@@ -133,6 +150,21 @@ export type DraftOperation =
     }
   | { readonly op: 'deleteRelation'; readonly relationId: string }
   | {
+      readonly op: 'addConflict';
+      readonly conflictId: string;
+      readonly componentIds: readonly string[];
+      readonly description: string;
+    }
+  | {
+      readonly op: 'updateConflict';
+      readonly conflictId: string;
+      readonly componentIds?: readonly string[];
+      readonly description?: string;
+      readonly status?: ConflictStatus;
+      readonly resolution?: string;
+    }
+  | { readonly op: 'deleteConflict'; readonly conflictId: string }
+  | {
       readonly op: 'updateDraft';
       readonly goal?: string;
       readonly changeSummary?: string;
@@ -154,6 +186,7 @@ export const emptyDraft = (sessionId: string, at: string): Draft => ({
   openQuestions: [],
   components: [],
   relations: [],
+  conflicts: [],
   updatedAt: at,
 });
 
@@ -210,6 +243,7 @@ interface MutableDraft {
   openQuestions: string[];
   components: Map<string, MutableComponent>;
   relations: Map<string, Relation>;
+  conflicts: Map<string, Conflict>;
 }
 
 const invalid = (index: number, message: string): OpsisError =>
@@ -252,6 +286,7 @@ const toMutable = (draft: Draft): MutableDraft => ({
     ]),
   ),
   relations: new Map(draft.relations.map((relation) => [relation.id, relation])),
+  conflicts: new Map(draft.conflicts.map((conflict) => [conflict.id, conflict])),
 });
 
 const siblings = (state: MutableDraft, parentId: string | null): MutableComponent[] =>
@@ -332,6 +367,29 @@ const setRegion = (component: MutableComponent, region: Region | null, screensho
   component.regions = component.regions.filter((existing) => existing.screenshotId !== screenshotId);
   if (region !== null) component.regions.push(region);
   component.regions.sort((a, b) => a.screenshotId.localeCompare(b.screenshotId));
+};
+
+const checkConflictComponents = (
+  state: MutableDraft,
+  index: number,
+  componentIds: readonly string[],
+): string[] => {
+  const unique = [...new Set(componentIds)];
+  for (const id of unique) requireComponent(state, index, id);
+  return unique;
+};
+
+const checkConflictStatus = (index: number, status: string): ConflictStatus => {
+  if (!(CONFLICT_STATUSES as readonly string[]).includes(status)) {
+    throw invalid(index, `unknown conflict status "${status}"`);
+  }
+  return status as ConflictStatus;
+};
+
+const requireDescription = (index: number, text: string): string => {
+  const trimmed = text.trim();
+  if (trimmed === '') throw invalid(index, 'a conflict needs a description');
+  return checkText(index, trimmed, 'description');
 };
 
 const applyOne = (
@@ -426,6 +484,15 @@ const applyOne = (
           state.relations.delete(id);
         }
       }
+      // The conflict itself stays (the contradiction is still recorded), only the reference goes.
+      for (const [id, conflict] of state.conflicts) {
+        if (conflict.componentIds.some((componentId) => removed.has(componentId))) {
+          state.conflicts.set(id, {
+            ...conflict,
+            componentIds: conflict.componentIds.filter((componentId) => !removed.has(componentId)),
+          });
+        }
+      }
       renumber(state, component.parentId);
       return;
     }
@@ -507,6 +574,52 @@ const applyOne = (
       }
       return;
     }
+    case 'addConflict': {
+      if (!hasIdPrefix(operation.conflictId, 'conflict')) {
+        throw invalid(index, `invalid conflict id "${operation.conflictId}"`);
+      }
+      if (state.conflicts.has(operation.conflictId)) throw invalid(index, 'conflict already exists');
+      if (state.conflicts.size >= DRAFT_LIMITS.maxConflicts) throw invalid(index, 'too many conflicts');
+      state.conflicts.set(operation.conflictId, {
+        id: operation.conflictId,
+        componentIds: checkConflictComponents(state, index, operation.componentIds),
+        description: requireDescription(index, operation.description),
+        status: 'open',
+        resolution: '',
+      });
+      return;
+    }
+    case 'updateConflict': {
+      const conflict = state.conflicts.get(operation.conflictId);
+      if (!conflict) throw invalid(index, `unknown conflict "${operation.conflictId}"`);
+      const status =
+        operation.status === undefined ? conflict.status : checkConflictStatus(index, operation.status);
+      const resolution =
+        operation.resolution === undefined
+          ? conflict.resolution
+          : checkText(index, operation.resolution.trim(), 'resolution');
+      if (status === 'resolved' && resolution === '') {
+        throw invalid(index, 'resolving a conflict needs a resolution text');
+      }
+      state.conflicts.set(conflict.id, {
+        ...conflict,
+        ...(operation.componentIds === undefined
+          ? {}
+          : { componentIds: checkConflictComponents(state, index, operation.componentIds) }),
+        ...(operation.description === undefined
+          ? {}
+          : { description: requireDescription(index, operation.description) }),
+        status,
+        resolution,
+      });
+      return;
+    }
+    case 'deleteConflict': {
+      if (!state.conflicts.delete(operation.conflictId)) {
+        throw invalid(index, `unknown conflict "${operation.conflictId}"`);
+      }
+      return;
+    }
     case 'updateDraft': {
       if (operation.goal !== undefined) state.goal = checkText(index, operation.goal, 'goal');
       if (operation.changeSummary !== undefined) {
@@ -570,5 +683,6 @@ export const applyDraftOperations = (
     openQuestions: state.openQuestions,
     components: treeOrder(state),
     relations: [...state.relations.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    conflicts: [...state.conflicts.values()].sort((a, b) => a.id.localeCompare(b.id)),
   };
 };
