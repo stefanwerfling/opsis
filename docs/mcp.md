@@ -69,7 +69,7 @@ außerdem `cancelled` und `failed`. Der erste Abruf des Prompts durch den Agente
 | `opsis_get_ui_history`            | lesen      | `project_id, ui_id`                                             | `ui_id, versions`                                                                  |
 | `opsis_submit_screenshot`         | schreiben  | `project_id, image_base64` + Metadaten (s. u.)                  | `session_id, screenshot_id, ui_id, status, assignment, editor_url, …`              |
 | `opsis_request_upload`            | schreiben  | `project_id` + Metadaten (s. u.)                                | `session_id, ui_id, status, upload_url, method, expires_at, max_bytes, editor_url` |
-| `opsis_get_screenshot`            | lesen      | `screenshot_id, include_image?`                                 | `screenshot, session_status` (+ WebP-Vorschau)                                     |
+| `opsis_get_screenshot`            | lesen      | `screenshot_id, include_image?, crop?`                          | `screenshot, session_status, image?` (+ WebP-Vorschau)                             |
 | `opsis_list_screenshots`          | lesen      | `project_id, ui_id?`                                            | `screenshots`                                                                      |
 | `opsis_get_session`               | lesen      | `session_id`                                                    | `session, screenshots, status_history, next_action`                                |
 | `opsis_get_session_status`        | lesen      | `session_id`                                                    | `status, assignment, updated_at, result_version_id, next_action`                   |
@@ -77,6 +77,9 @@ außerdem `cancelled` und `failed`. Der erste Abruf des Prompts durch den Agente
 | `opsis_get_specification`         | lesen      | `session_id?` oder `version_id?`, `format?` (`json`/`markdown`) | `format, specification, references`                                                |
 | `opsis_get_implementation_prompt` | schreiben¹ | `session_id?` oder `version_id?`                                | `markdown, ui_version_id, version_no, spec_revision_id, prompt_version_id`         |
 | `opsis_cancel_session`            | schreiben  | `session_id, reason`                                            | `session`                                                                          |
+| `opsis_list_sessions`             | lesen      | `project_id, status?`                                           | `sessions` (Standard: offene)                                                      |
+| `opsis_propose_components`        | schreiben  | `session_id, components[…]` (s. §3a)                            | `revision, created, component_count, spec_values, editor_url`                      |
+| `opsis_get_draft`                 | lesen      | `session_id`                                                    | Entwurf, nur vor Beginn der Prüfung                                                |
 
 ¹ Der erste Abruf markiert die Session als `delivered`.
 
@@ -95,6 +98,48 @@ curl -T screenshot.png -H 'content-type: image/png' "<upload_url>"
 ```
 
 Bis dahin steht die Session auf `uploading`. Ein abgelaufener Slot setzt sie auf `failed`.
+
+## 3a. Komponenten vorschlagen
+
+Ein Agent kann die Komponenten eines Screenshots vorab beschreiben. Das gilt auch für
+Screenshots, die der Mensch im Browser hochgeladen hat; der Editor zeigt dafür eine fertige
+Bitte an den Agenten. Möglich ist das, solange die Session auf `awaiting_review` steht.
+
+1. Session finden: `opsis_list_sessions { project_id }`, oder der Mensch nennt die `session_id`.
+2. Hinsehen: `opsis_get_session` (Screenshots), dann `opsis_get_screenshot { include_image: true }`.
+   Bei hohen Seiten Details per `crop { x, y, width, height }` ansehen. Koordinaten in
+   Originalpixeln: `image.x + x × image.scale` (für y entsprechend).
+3. Vorschlagen:
+
+```json
+{
+  "session_id": "ses_…",
+  "components": [
+    {
+      "ref": "header",
+      "name": "Header",
+      "kind": "container",
+      "region": { "screenshot_id": "scr_…", "x": 0, "y": 0, "width": 1280, "height": 72 },
+      "spec": { "general": { "description": "Blaue Leiste mit Logo und Navigation" } }
+    },
+    {
+      "ref": "logo",
+      "parent_ref": "header",
+      "name": "Logo",
+      "region": { "screenshot_id": "scr_…", "x": 16, "y": 12, "width": 120, "height": 48 },
+      "spec": { "interaction": { "click": "führt zur Startseite" } }
+    }
+  ]
+}
+```
+
+`spec`-Gruppen und -Felder: `general` (description, purpose, responsibility), `visual`,
+`functional`, `interaction`, `layout`, `acceptance`. Die vollständige Liste steht in der
+Tool-Beschreibung. Beschrieben wird nur, was sichtbar ist; unbekannte Felder bleiben weg.
+Eltern stehen vor ihren Kindern. Weitere Aufrufe fügen Komponenten hinzu und können über
+`parent_id` an bestehende anhängen. Alle Werte sind `auto_detected`: Der Mensch sieht sie live
+im Editor, bestätigt oder ändert sie und gibt dann frei. Sobald er mit der Bearbeitung
+beginnt, sind keine Vorschläge mehr möglich.
 
 ## 4. Ressourcen
 
@@ -116,17 +161,17 @@ Clients mit Protokoll 2026-07-28 können Ressourcen abonnieren und erhalten
 
 Tool-Fehler kommen als `isError: true` mit dem Text `{"error":{"code","message","details?"}}`.
 
-| Code                 | Bedeutung                                                           | Reaktion des Agenten                           |
-| -------------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
-| `VALIDATION`         | Eingabe ungültig (`details.issues`)                                 | Eingabe korrigieren                            |
-| `NOT_FOUND`          | Unbekannt **oder kein Zugriff**                                     | ID prüfen oder den Menschen um Freigabe bitten |
-| `NOT_READY`          | Spezifikation oder Prompt noch nicht freigegeben                    | `opsis_wait_for_specification`                 |
-| `INVALID_TRANSITION` | Session in falschem Status (z. B. Variante an geschlossene Session) | neue Session                                   |
-| `CONFLICT`           | z. B. UI-ID bereits vergeben                                        | andere ID                                      |
-| `PAYLOAD_TOO_LARGE`  | Bild zu groß (> 20 MB, > 16 384 px Kante, > 40 MP)                  | verkleinern                                    |
-| `UNSUPPORTED_MEDIA`  | kein PNG, JPEG oder WebP                                            | konvertieren                                   |
-| `FORBIDDEN_ACTOR`    | Aktion nur für Menschen                                             | –                                              |
-| `INTERNAL`           | interner Fehler (Details nur im Server-Log)                         | später erneut versuchen                        |
+| Code                 | Bedeutung                                                                                              | Reaktion des Agenten                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| `VALIDATION`         | Eingabe ungültig (`details.issues`)                                                                    | Eingabe korrigieren                            |
+| `NOT_FOUND`          | Unbekannt **oder kein Zugriff**                                                                        | ID prüfen oder den Menschen um Freigabe bitten |
+| `NOT_READY`          | Spezifikation oder Prompt noch nicht freigegeben                                                       | `opsis_wait_for_specification`                 |
+| `INVALID_TRANSITION` | Session in falschem Status (z. B. Variante an geschlossene Session, Vorschlag nach Beginn der Prüfung) | neue Session bzw. auf die Freigabe warten      |
+| `CONFLICT`           | z. B. UI-ID bereits vergeben                                                                           | andere ID                                      |
+| `PAYLOAD_TOO_LARGE`  | Bild zu groß (> 20 MB, > 16 384 px Kante, > 40 MP)                                                     | verkleinern                                    |
+| `UNSUPPORTED_MEDIA`  | kein PNG, JPEG oder WebP                                                                               | konvertieren                                   |
+| `FORBIDDEN_ACTOR`    | Aktion nur für Menschen                                                                                | –                                              |
+| `INTERNAL`           | interner Fehler (Details nur im Server-Log)                                                            | später erneut versuchen                        |
 
 HTTP-Ebene: `401` bei fehlendem, falschem oder widerrufenem Token; `403` bei fremdem
 `Origin` oder `Host`.

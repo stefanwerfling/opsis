@@ -129,3 +129,76 @@ test('agent submits, human specifies and releases, agent gets the prompt', async
     await client.close();
   }
 });
+
+test('agent proposes components, they appear live, the human confirms and releases', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  const client = await connectAgent(request, baseURL ?? '');
+  try {
+    const { project } = await tool<{ project: { project_id: string } }>(client, 'opsis_create_project', {
+      name: 'E2E Proposals',
+    });
+    const submitted = await tool<{ session_id: string; screenshot_id: string; editor_url: string }>(
+      client,
+      'opsis_submit_screenshot',
+      { project_id: project.project_id, ui_path: '/home', image_base64: await screenshot() },
+    );
+
+    // The human has the session open before the agent proposes anything.
+    await page.goto(new URL(submitted.editor_url).pathname);
+    await expect(page.getByText('Let an agent describe the components')).toBeVisible();
+    await expect(page.getByRole('treeitem')).toHaveCount(0);
+
+    await tool(client, 'opsis_propose_components', {
+      session_id: submitted.session_id,
+      components: [
+        {
+          ref: 'header',
+          name: 'Header bar',
+          kind: 'container',
+          region: { screenshot_id: submitted.screenshot_id, x: 0, y: 0, width: 1280, height: 72 },
+          spec: {
+            general: { description: 'Dark blue bar across the top', purpose: 'Branding and navigation' },
+            acceptance: { expectedLayout: 'Full width, 72 px high' },
+          },
+        },
+        {
+          ref: 'content',
+          name: 'Content area',
+          kind: 'container',
+          region: { screenshot_id: submitted.screenshot_id, x: 0, y: 72, width: 1280, height: 728 },
+          spec: { general: { description: 'Light, empty area below the header' } },
+        },
+      ],
+    });
+
+    // Live: the proposals appear without a reload, marked as unconfirmed.
+    await expect(page.getByRole('treeitem')).toHaveCount(2);
+    await expect(page.getByText('4 proposed values in 2 components are not confirmed yet.')).toBeVisible();
+    await page.screenshot({ path: 'test-results/proposals.png' });
+
+    await page.getByRole('button', { name: 'Confirm all proposals' }).click();
+    await expect(page.getByText(/proposed values in/)).toHaveCount(0);
+    await expect(page.getByText('All changes saved')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Release…' }).click();
+    await expect(page.getByText('Auto-detected value not confirmed')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Acknowledge all' }).click();
+    await page.getByRole('button', { name: 'Release now' }).click();
+
+    const done = await tool<{ done: boolean; status: string }>(client, 'opsis_wait_for_specification', {
+      session_id: submitted.session_id,
+      timeout_seconds: 10,
+    });
+    expect(done).toMatchObject({ done: true, status: 'ready' });
+    const prompt = await tool<{ markdown: string }>(client, 'opsis_get_implementation_prompt', {
+      session_id: submitted.session_id,
+    });
+    expect(prompt.markdown).toContain('Dark blue bar across the top');
+    expect(prompt.markdown).toContain('Header bar');
+  } finally {
+    await client.close();
+  }
+});

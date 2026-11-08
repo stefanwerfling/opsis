@@ -1,6 +1,6 @@
 ---
 name: opsis-ui-spec
-description: Get a human-approved UI specification from OPSIS before building or changing a screen. Use when the user wants a UI built "like this screenshot", wants to change an existing screen, or asks to "spec", "annotate" or "review" a UI with OPSIS. Requires the opsis MCP server.
+description: Get a human-approved UI specification from OPSIS before building or changing a screen, and describe the components of an OPSIS screenshot on request. Use when the user wants a UI built "like this screenshot", wants to change an existing screen, asks to "spec", "annotate" or "review" a UI with OPSIS, or asks you to describe the components of an OPSIS session. Requires the opsis MCP server.
 ---
 
 # UI specification with OPSIS
@@ -34,6 +34,24 @@ do not guess what the human will specify.
    task: it lists components, behaviour, acceptance criteria and open questions. Implement it, run
    the project's checks, and report back with the OPSIS version number (`version_no`).
    - Open questions in the prompt are for the user. Ask them; do not invent answers.
+
+## Describing components (proposals)
+
+When the user asks you to describe the components of a session (also one they uploaded in the
+browser), or wants a head start before reviewing:
+
+1. Find the session: the user names it, or use `opsis_list_sessions` and take the newest
+   `awaiting_review` one. Proposals are only possible in that status.
+2. Look: `opsis_get_session` for the screenshots, then `opsis_get_screenshot` with
+   `include_image: true`. For tall pages, look at details with `crop` in steps of about one screen
+   height. Convert to original pixels: `x = image.x + thumbnail_x × image.scale`, and the same for y.
+3. Propose the structure top-down with `opsis_propose_components`: sections, then their parts
+   (`parent_ref`), with a tight `region` each and a short `name`. Fill in `spec` only with what is
+   visible or obvious: `general.description`, and where clear `purpose`, `interaction.*` and
+   `acceptance.expectedLayout`. Leave fields out rather than guess. Split very large pages over
+   several calls (`parent_id` attaches to components you created earlier).
+4. Tell the user how many components you proposed and give the `editor_url`. All values are marked
+   as unconfirmed until they confirm or change them.
 
 ## Rules
 

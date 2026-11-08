@@ -2,6 +2,7 @@ import { childrenOf, depthColor, subtreeIds, type Draft, type DraftComponent } f
 import { h, replaceChildren } from '../dom.js';
 import { t } from '../i18n/i18n.js';
 import type { Editor } from './editor.js';
+import { unconfirmedCount } from './proposals.js';
 
 type DropZone = 'before' | 'inside' | 'after';
 
@@ -265,6 +266,15 @@ export class TreePanel {
       h('span', { class: 'tree-swatch', attrs: { title: t('editor.depth', { depth: depth + 1 }) } }),
       name,
       !hasRegion && h('span', { class: 'tree-noregion', attrs: { title: t('editor.noRegion') } }, '○'),
+      unconfirmedCount(component) > 0 &&
+        h(
+          'span',
+          {
+            class: 'tree-proposal',
+            attrs: { title: t('proposals.treeHint', { values: unconfirmedCount(component) }) },
+          },
+          '✦',
+        ),
       h(
         'button',
         {

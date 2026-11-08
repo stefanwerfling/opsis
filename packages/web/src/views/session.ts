@@ -13,6 +13,7 @@ import { t } from '../i18n/i18n.js';
 import { onLiveEvent } from '../live.js';
 import { pathTo } from '../router.js';
 import {
+  copyButton,
   Disposer,
   errorBox,
   errorMessage,
@@ -56,6 +57,26 @@ const actionButton = (
     label,
   );
   return button;
+};
+
+/**
+ * Before the review a connected agent may propose components (opsis_propose_components).
+ * The hint gives the human a ready-made request for their agent.
+ */
+const proposalHint = (sessionId: string, output: HTMLElement): HTMLElement => {
+  const request = t('proposals.request', { session: sessionId });
+  return h(
+    'details',
+    { class: 'proposal-hint' },
+    h('summary', {}, t('proposals.title')),
+    h('p', { class: 'muted' }, t('proposals.intro')),
+    h(
+      'div',
+      { class: 'row' },
+      h('code', { class: 'proposal-request' }, request),
+      copyButton(() => request, output),
+    ),
+  );
 };
 
 /** Session header: status, actions, assignment confirmation, details and history. */
@@ -190,6 +211,7 @@ const sessionHeader = (
     actionOutput,
     concurrentSessionIds.length > 0 &&
       h('p', { class: 'notice' }, t('session.concurrent', { count: concurrentSessionIds.length })),
+    session.status === 'awaiting_review' && proposalHint(session.id, actionOutput),
     assignmentBox,
     h(
       'details',

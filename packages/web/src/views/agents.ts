@@ -5,6 +5,7 @@ import { t } from '../i18n/i18n.js';
 import { pathTo } from '../router.js';
 import {
   Disposer,
+  copyButton,
   errorBox,
   field,
   formError,
@@ -13,31 +14,6 @@ import {
   liveSection,
   type View,
 } from '../ui.js';
-
-/** Copies `text` and confirms on the button for a moment. */
-const copyButton = (text: () => string, output: HTMLElement): HTMLButtonElement => {
-  const button = h(
-    'button',
-    {
-      attrs: { type: 'button' },
-      onClick: () => {
-        navigator.clipboard
-          .writeText(text())
-          .then(() => {
-            button.textContent = t('version.copied');
-            setTimeout(() => {
-              button.textContent = t('version.copy');
-            }, 1500);
-          })
-          .catch((error: unknown) => {
-            replaceChildren(output, errorBox(error));
-          });
-      },
-    },
-    t('version.copy'),
-  );
-  return button;
-};
 
 const mcpConfig = (): string =>
   JSON.stringify(

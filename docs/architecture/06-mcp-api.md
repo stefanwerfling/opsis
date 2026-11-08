@@ -96,6 +96,29 @@ Validierungsfunktion wie beim Browser-Upload wird verwendet.
 Es gibt **kein** Tool zur Freigabe und keins zum Ändern von Komponenten. Die
 Spezifikation erstellt und verantwortet allein der Mensch.
 
+### Vorschläge des Agenten (E9, revidiert)
+
+| Tool                       | Eingabe                                                                                       | Ausgabe                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `opsis_list_sessions`      | `project_id, status?` (Standard: offene)                                                      | Sessions, neueste zuerst – auch im Browser hochgeladene                                |
+| `opsis_propose_components` | `session_id, components[{ref, parent_ref?, parent_id?, name, kind?, region?, spec?}]` (≤ 300) | `{ revision, created[{ref, component_id}], component_count, spec_values, editor_url }` |
+| `opsis_get_draft`          | `session_id`                                                                                  | Komponenten mit Markierungen und Werten samt Herkunft                                  |
+
+Ein Agent darf Komponenten **vorschlagen**, solange die Session auf `awaiting_review` steht,
+der Mensch also noch nicht mit der Prüfung begonnen hat. Vorschläge werden hinzugefügt,
+jeder Aufruf erzeugt genau eine Entwurfsrevision. Name, Typ, Eltern und Markierung
+(Originalpixel, auf das Bild begrenzt) werden normale Komponenten. Jeder Spezifikationswert
+erhält die Herkunft `auto_detected`, und die Freigabe warnt
+(`unconfirmed_auto_detected`), bis der Mensch ihn bestätigt oder umschreibt. Der Editor
+zeigt die Vorschläge live, markiert sie (✦) und bietet „Vorschläge bestätigen“ je
+Komponente oder für alle an. Schreibt der Mensch einen vorgeschlagenen Text um, wird er zu
+`user`. Die erste Bearbeitung durch den Menschen startet die Prüfung; danach lehnt
+`opsis_propose_components` mit `INVALID_TRANSITION` ab und `opsis_get_draft` mit
+`NOT_READY`. Ein unfertiger Stand des Menschen wird also weiterhin nie herausgegeben.
+
+Zum Hinsehen liefert `opsis_get_screenshot` mit `crop` einen Ausschnitt in Originalpixeln
+und mit `image.scale` den Umrechnungsfaktor (Original = `image.x/y` + Vorschau × `scale`).
+
 `get_specification` und `get_implementation_prompt` liefern vor `ready` den Fehler
 `NOT_READY` zusammen mit dem aktuellen Status. Ein unfertiger Stand wird nie herausgegeben.
 

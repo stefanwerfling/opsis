@@ -699,6 +699,32 @@ button.link {
   font-size: 0.75rem;
 }
 
+.tree-proposal {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.proposal-hint {
+  margin: 8px 0;
+}
+
+.proposal-request {
+  user-select: all;
+  white-space: normal;
+}
+
+.proposal-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.proposal-notice p {
+  margin: 0;
+}
+
 .tree-eye {
   margin-left: auto;
 }

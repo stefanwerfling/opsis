@@ -194,3 +194,28 @@ export class Disposer {
     for (const callback of this.callbacks.splice(0).reverse()) callback();
   };
 }
+
+/** Copies `text` and confirms on the button for a moment. */
+export const copyButton = (text: () => string, output: HTMLElement): HTMLButtonElement => {
+  const button = h(
+    'button',
+    {
+      attrs: { type: 'button' },
+      onClick: () => {
+        navigator.clipboard
+          .writeText(text())
+          .then(() => {
+            button.textContent = t('version.copied');
+            setTimeout(() => {
+              button.textContent = t('version.copy');
+            }, 1500);
+          })
+          .catch((error: unknown) => {
+            replaceChildren(output, errorBox(error));
+          });
+      },
+    },
+    t('version.copy'),
+  );
+  return button;
+};

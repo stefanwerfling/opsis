@@ -793,9 +793,10 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     {
       title: 'Get draft',
       description:
-        'The current, unreleased specification draft of a session: components with parent, kind, markings ' +
-        '(original screenshot pixels) and specification values with their origin. Not a released ' +
-        'specification – implement only what opsis_get_implementation_prompt returns.',
+        'The draft of a session in the proposal phase (status "awaiting_review"): components with parent, ' +
+        'kind, markings (original screenshot pixels) and values with their origin – your proposals and ' +
+        'components inherited from the released base version. Once the human works on it, the unfinished ' +
+        'state is not handed out (NOT_READY); implement only what opsis_get_implementation_prompt returns.',
       input: z.object({ session_id: SessionId }),
       output: z.object({
         session_id: z.string(),
@@ -807,6 +808,13 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     },
     ({ session_id }) => {
       const { session } = getSession(ctx, actor, session_id);
+      if (session.status !== 'awaiting_review') {
+        throw new OpsisError(
+          'NOT_READY',
+          'The draft is only readable before the human starts the review; afterwards use the released specification',
+          { status: session.status },
+        );
+      }
       const draft = getDraft(ctx, actor, session_id);
       return {
         data: {

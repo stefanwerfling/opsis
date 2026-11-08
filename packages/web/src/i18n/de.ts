@@ -102,6 +102,16 @@ export const de: Messages = {
   'session.submittedByHuman': 'lokaler Benutzer',
   'session.created': 'Angelegt',
   'session.startReview': 'Prüfung starten',
+  'proposals.title': 'Komponenten von einem Agenten beschreiben lassen',
+  'proposals.intro':
+    'Bevor du die Prüfung startest, kann ein verbundener Agent Komponenten mit Markierung und Beschreibung vorschlagen. Sie erscheinen hier live und bleiben als „automatisch erkannt“ markiert, bis du sie bestätigst oder umschreibst. Sag deinem Agenten:',
+  'proposals.request': 'Beschreibe die Komponenten der OPSIS-Session {session} (opsis_propose_components).',
+  'proposals.draftOpen':
+    '{values} vorgeschlagene Werte in {components} Komponenten sind noch nicht bestätigt.',
+  'proposals.componentOpen': '{values} vorgeschlagene Werte dieser Komponente sind noch nicht bestätigt.',
+  'proposals.confirm': 'Vorschläge bestätigen',
+  'proposals.confirmAll': 'Alle Vorschläge bestätigen',
+  'proposals.treeHint': '{values} unbestätigte Vorschläge des Agenten',
   'session.cancel': 'Session abbrechen',
   'session.cancelReason': 'Grund für den Abbruch (optional)',
   'session.history': 'Statusverlauf',

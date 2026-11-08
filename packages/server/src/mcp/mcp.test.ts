@@ -402,6 +402,10 @@ describe('MCP endpoint', () => {
         components: [{ ref: 'late', name: 'Late' }],
       }),
     ).toBe('INVALID_TRANSITION');
+    // … nor read the unfinished draft the human is working on.
+    expect(await errorCode(client, 'opsis_get_draft', { session_id: submitted.session_id })).toBe(
+      'NOT_READY',
+    );
   });
 
   it('hides internal error details from the agent', async () => {

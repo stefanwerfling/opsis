@@ -18,6 +18,7 @@ import {
 } from '@opsis/core/browser';
 import { h, replaceChildren, type Child } from '../dom.js';
 import { t, type MessageKey } from '../i18n/i18n.js';
+import { confirmOperations, unconfirmedCount } from './proposals.js';
 import type { Editor } from './editor.js';
 import { issueLabel } from './issues.js';
 
@@ -164,6 +165,7 @@ export class InspectorPanel {
     return [
       h('h2', {}, t('editor.draftTitle')),
       h('p', { class: 'muted' }, t('editor.draftHint')),
+      this.section(() => this.proposalBlock()),
       this.section(() => this.inheritedBlock()),
       this.text({
         label: t('editor.goal'),
@@ -286,6 +288,7 @@ export class InspectorPanel {
         this.section(() => [component()?.name ?? '']),
       ),
       this.section(() => this.regionBlock(componentId)),
+      this.section(() => this.proposalBlock([componentId])),
       this.section(() => this.hintsBlock(componentId)),
       ...groups,
       h('h3', {}, t('editor.relations')),
@@ -333,8 +336,12 @@ export class InspectorPanel {
       read: () => current()?.value ?? '',
       commit: (text) => {
         const previous = current();
-        const value =
-          text.trim() === '' ? null : { value: text, origin: previous?.origin ?? ('user' as const) };
+        // Rewriting an agent proposal makes the human its author.
+        const origin =
+          previous?.origin === 'auto_detected' && previous.value !== text
+            ? 'user'
+            : (previous?.origin ?? 'user');
+        const value = text.trim() === '' ? null : { value: text, origin };
         editor.apply({ op: 'setSpecValue', componentId, group, field, value });
       },
     });
@@ -346,6 +353,42 @@ export class InspectorPanel {
     });
     element.querySelector('.field-label')?.after(status, origin);
     return element;
+  }
+
+  /** Unconfirmed agent proposals of the given components (all when omitted), with a confirm button. */
+  private proposalBlock(componentIds?: readonly string[]): Child[] {
+    const editor = this.editor;
+    const operations = confirmOperations(editor.draft, componentIds);
+    if (operations.length === 0) return [];
+    const components =
+      componentIds === undefined
+        ? editor.draft.components.filter((component) => unconfirmedCount(component) > 0).length
+        : 1;
+    return [
+      h(
+        'div',
+        { class: 'notice proposal-notice' },
+        h(
+          'p',
+          {},
+          componentIds === undefined
+            ? t('proposals.draftOpen', { values: operations.length, components })
+            : t('proposals.componentOpen', { values: operations.length }),
+        ),
+        h(
+          'button',
+          {
+            attrs: { type: 'button', disabled: editor.readOnly },
+            onClick: (event) => {
+              // Sections with focus are not re-rendered (protects typing); the button is done.
+              (event.currentTarget as HTMLButtonElement).blur();
+              editor.apply(...confirmOperations(editor.draft, componentIds));
+            },
+          },
+          componentIds === undefined ? t('proposals.confirmAll') : t('proposals.confirm'),
+        ),
+      ),
+    ];
   }
 
   /** Completeness issues of this component (the release dialog shows all of them). */
