@@ -218,5 +218,5 @@ loop: opsis_wait_for_specification { session_id, timeout_seconds: 300 } until do
 opsis_get_implementation_prompt { session_id } → Markdown mit V-Nr., Revision, Screenshot-Refs
 ```
 
-Ein Beispiel-Skill bzw. eine CLAUDE.md-Vorlage für diesen Ablauf wird in Phase 6
-mitgeliefert.
+Ein Beispiel-Skill und eine CLAUDE.md-Vorlage für diesen Ablauf liegen unter
+[examples/claude-code](../../examples/claude-code/); die Kurzreferenz ist [docs/mcp.md](../mcp.md).

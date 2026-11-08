@@ -121,6 +121,10 @@ O(n²)). Die Vollständigkeitsprüfung schlägt Komponenten über eine Map nach.
 die Hintergrundfarbe nicht mehr bei jedem Frame aus dem CSS. Eine Virtualisierung der
 Overlays ist bei 1000 Markierungen nicht nötig, weil ein Canvas-Frame unter 17 ms bleibt.
 
+Umsetzung (Phase 6, Schritte 3 und 4): Security-Review in [docs/security.md](../security.md).
+Dokumentation in [docs/mcp.md](../mcp.md) und [docs/operations.md](../operations.md),
+Agent-Beispiel in [examples/claude-code](../../examples/claude-code/).
+
 ## Teststrategie (Kurzfassung)
 
 | Ebene       | Werkzeug                                        | Schwerpunkt                                                                          |
