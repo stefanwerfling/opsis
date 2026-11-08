@@ -6,6 +6,7 @@ import type { Screenshot } from '../screenshot.js';
 import type { Session } from '../session.js';
 import type { UiView } from '../ui-view.js';
 import type { PromptLanguage } from '../vocabulary.js';
+import { compareVersions } from '../diff.js';
 import { canonicalJson } from './canonical-json.js';
 import { renderSpecificationMarkdown } from './markdown.js';
 import { generatePrompt } from './prompt.js';
@@ -173,53 +174,109 @@ const make = (
 };
 
 /** Fully specified dashboard: no warnings, two screenshot variants. */
+const completeOps = (): DraftOperation[] => [
+  add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
+  add(ids.logo, ids.header, 'Logo', 'visual_area', { x: 24, y: 16, width: 140, height: 48 }),
+  add(ids.nav, ids.header, 'MainNavigation', 'interactive', { x: 900, y: 20, width: 500, height: 40 }),
+  add(ids.stats, null, 'StatisticsCard', 'component', { x: 24, y: 120, width: 400, height: 240 }),
+  {
+    op: 'setRegion',
+    componentId: ids.header,
+    screenshotId: MOBILE,
+    rect: { x: 0, y: 0, width: 390, height: 64 },
+  },
+  set(ids.header, 'general', 'description', 'Top bar with logo and navigation'),
+  set(ids.header, 'layout', 'positioning', 'Sticky at the top, full width'),
+  set(ids.header, 'visual', 'colors', 'Background #2457d6, text white', 'screenshot_derived'),
+  set(ids.header, 'visual', 'responsive', 'Below 768 px the navigation collapses into a menu button'),
+  set(ids.header, 'acceptance', 'expectedLayout', 'Header stays visible while scrolling'),
+  set(ids.header, 'acceptance', 'responsiveRequirements', 'Height 64 px on mobile'),
+  set(ids.logo, 'general', 'description', 'Shop logo, links to the start page'),
+  set(ids.logo, 'acceptance', 'expectedBehavior', 'Click opens /'),
+  set(ids.nav, 'general', 'description', 'Links: Dashboard, Orders, Settings'),
+  set(ids.nav, 'interaction', 'hover', 'Underline the hovered link'),
+  set(ids.nav, 'interaction', 'keyboard', 'Tab moves through the links, Enter opens'),
+  set(ids.nav, 'functional', 'actions', 'Navigates to the selected page'),
+  set(ids.nav, 'acceptance', 'expectedBehavior', 'Active page link is highlighted'),
+  set(ids.stats, 'general', 'description', 'Revenue of the last 30 days'),
+  set(ids.stats, 'functional', 'dataSources', 'GET /api/stats/revenue?days=30'),
+  set(ids.stats, 'interaction', 'loading', 'Skeleton placeholder'),
+  set(ids.stats, 'interaction', 'error', 'Message "Could not load revenue" with retry button'),
+  set(ids.stats, 'acceptance', 'functionalRequirements', 'Amount formatted in EUR'),
+  {
+    op: 'addRelation',
+    relationId: fid('rel', 'R1'),
+    fromComponentId: ids.nav,
+    toComponentId: ids.stats,
+    kind: 'controls',
+    description: 'Selecting "Orders" replaces the card',
+  },
+  {
+    op: 'updateDraft',
+    goal: 'Implement the dashboard page as shown.',
+    acceptance: ['Page loads in under 1 s', 'No layout shift after loading'],
+  },
+];
+
 const complete = (language: PromptLanguage = 'en'): SpecSnapshot =>
+  make(completeOps(), { language, screenshots: [desktop, mobile] });
+
+/**
+ * V2 of `complete`: renamed and resized components, changed/removed fields, a removed and
+ * a new component, a changed and a new relation, one more global acceptance criterion.
+ */
+const revised = (language: PromptLanguage = 'en'): SpecSnapshot =>
   make(
     [
-      add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
-      add(ids.logo, ids.header, 'Logo', 'visual_area', { x: 24, y: 16, width: 140, height: 48 }),
-      add(ids.nav, ids.header, 'MainNavigation', 'interactive', { x: 900, y: 20, width: 500, height: 40 }),
-      add(ids.stats, null, 'StatisticsCard', 'component', { x: 24, y: 120, width: 400, height: 240 }),
+      ...completeOps(),
+      { op: 'updateComponent', componentId: ids.stats, name: 'RevenueCard' },
       {
         op: 'setRegion',
         componentId: ids.header,
-        screenshotId: MOBILE,
-        rect: { x: 0, y: 0, width: 390, height: 64 },
+        screenshotId: DESKTOP,
+        rect: { x: 0, y: 0, width: 1440, height: 96 },
       },
-      set(ids.header, 'general', 'description', 'Top bar with logo and navigation'),
-      set(ids.header, 'layout', 'positioning', 'Sticky at the top, full width'),
-      set(ids.header, 'visual', 'colors', 'Background #2457d6, text white', 'screenshot_derived'),
-      set(ids.header, 'visual', 'responsive', 'Below 768 px the navigation collapses into a menu button'),
-      set(ids.header, 'acceptance', 'expectedLayout', 'Header stays visible while scrolling'),
-      set(ids.header, 'acceptance', 'responsiveRequirements', 'Height 64 px on mobile'),
-      set(ids.logo, 'general', 'description', 'Shop logo, links to the start page'),
-      set(ids.logo, 'acceptance', 'expectedBehavior', 'Click opens /'),
-      set(ids.nav, 'general', 'description', 'Links: Dashboard, Orders, Settings'),
-      set(ids.nav, 'interaction', 'hover', 'Underline the hovered link'),
-      set(ids.nav, 'interaction', 'keyboard', 'Tab moves through the links, Enter opens'),
-      set(ids.nav, 'functional', 'actions', 'Navigates to the selected page'),
-      set(ids.nav, 'acceptance', 'expectedBehavior', 'Active page link is highlighted'),
-      set(ids.stats, 'general', 'description', 'Revenue of the last 30 days'),
-      set(ids.stats, 'functional', 'dataSources', 'GET /api/stats/revenue?days=30'),
-      set(ids.stats, 'interaction', 'loading', 'Skeleton placeholder'),
-      set(ids.stats, 'interaction', 'error', 'Message "Could not load revenue" with retry button'),
-      set(ids.stats, 'acceptance', 'functionalRequirements', 'Amount formatted in EUR'),
+      set(ids.header, 'layout', 'positioning', 'Sticky at the top, full width\nShadow when scrolled'),
+      { op: 'setSpecValue', componentId: ids.nav, group: 'interaction', field: 'hover', value: null },
+      { op: 'deleteComponent', componentId: ids.logo },
+      add(ids.item, ids.header, 'SearchField', 'interactive', { x: 400, y: 24, width: 360, height: 48 }),
+      set(ids.item, 'general', 'description', 'Search over orders'),
+      set(ids.item, 'acceptance', 'expectedBehavior', 'Enter opens the result list'),
+      {
+        op: 'updateRelation',
+        relationId: fid('rel', 'R1'),
+        description: 'Selecting "Orders" filters the card',
+      },
       {
         op: 'addRelation',
-        relationId: fid('rel', 'R1'),
-        fromComponentId: ids.nav,
+        relationId: fid('rel', 'R2'),
+        fromComponentId: ids.item,
         toComponentId: ids.stats,
-        kind: 'controls',
-        description: 'Selecting "Orders" replaces the card',
+        kind: 'data_flow',
+        description: '',
       },
       {
         op: 'updateDraft',
-        goal: 'Implement the dashboard page as shown.',
-        acceptance: ['Page loads in under 1 s', 'No layout shift after loading'],
+        changeSummary: 'Search in the header, taller header, logo removed.',
+        acceptance: [
+          'Page loads in under 1 s',
+          'No layout shift after loading',
+          'Search answers in under 300 ms',
+        ],
       },
     ],
     { language, screenshots: [desktop, mobile] },
   );
+
+const refsV2: ReleaseReferences = {
+  ...refs,
+  uiVersionId: fid('uvr', 'V2'),
+  versionNo: 2,
+  specRevisionId: fid('spr', 'R2'),
+  revisionNo: 2,
+  predecessor: { id: fid('uvr', 'V1'), versionNo: 1 },
+  changeDescription: 'Header search',
+};
 
 /** Little specified: missing fields, auto-detected value, open questions – released with acknowledged warnings. */
 const incomplete = (): SpecSnapshot =>
@@ -308,6 +365,102 @@ describe('prompt and specification generator (snapshots)', () => {
       );
     });
   }
+});
+
+describe('revision prompt (snapshots)', () => {
+  for (const language of ['en', 'de'] as const) {
+    it(`lists the changes to the predecessor (${language})`, async () => {
+      await expect(generatePrompt(revised(language), refsV2, complete(language))).toMatchFileSnapshot(
+        `__snapshots__/prompt.revision.${language}.md`,
+      );
+    });
+  }
+
+  it('says so when nothing changed and stays without the section for a first version', () => {
+    const prompt = generatePrompt(complete(), refsV2, complete());
+    expect(prompt).toContain('## Changes compared to V1');
+    expect(prompt).toContain('_No specified differences to V1._');
+    expect(generatePrompt(complete(), refs, complete())).not.toContain('## Changes compared to');
+  });
+});
+
+describe('compareVersions', () => {
+  it('classifies components and finds field, geometry, relation and global changes', () => {
+    const diff = compareVersions(complete(), revised());
+    const status = Object.fromEntries(diff.components.map((component) => [component.name, component.status]));
+    expect(status).toEqual({
+      Header: 'changed',
+      MainNavigation: 'changed',
+      SearchField: 'added',
+      RevenueCard: 'changed',
+      Logo: 'removed',
+    });
+    expect(diff.counts).toEqual({ added: 1, removed: 1, changed: 3, unchanged: 0 });
+    const nav = diff.components.find((component) => component.componentId === ids.nav);
+    expect(nav?.fields).toEqual([
+      {
+        field: 'interaction.hover',
+        before: { value: 'Underline the hovered link', origin: 'user' },
+        after: null,
+      },
+    ]);
+    const header = diff.components.find((component) => component.componentId === ids.header);
+    expect(header?.geometry).toEqual([
+      {
+        deviceCategory: 'desktop',
+        before: { x: 0, y: 0, width: 1440, height: 80 },
+        after: { x: 0, y: 0, width: 1440, height: 96 },
+        moved: true,
+        resized: true,
+      },
+    ]);
+    expect(header?.fields.map((change) => change.field)).toEqual(['layout.positioning']);
+    expect(diff.components.find((component) => component.componentId === ids.stats)?.rename).toEqual({
+      before: 'StatisticsCard',
+      after: 'RevenueCard',
+    });
+    expect(diff.relations.added.map((relation) => relation.id)).toEqual([fid('rel', 'R2')]);
+    expect(diff.relations.changed).toHaveLength(1);
+    expect(diff.acceptance).toEqual({ added: ['Search answers in under 300 ms'], removed: [] });
+    expect(diff.goal).toBeUndefined();
+  });
+
+  it('ignores sub-pixel geometry noise and screenshot changes, compares across sizes', () => {
+    const wide = screenshot(fid('scr', 'WIDE'), 3, { width: 2880, height: 1800 });
+    const a = make([add(ids.header, null, 'Header', 'container', { x: 10, y: 10, width: 200, height: 50 })]);
+    const same = make(
+      [add(ids.header, null, 'Header', 'container', { x: 20, y: 21, width: 400, height: 100 }, wide.id)],
+      { screenshots: [wide] },
+    );
+    expect(compareVersions(a, same).components[0]?.status).toBe('unchanged');
+    const moved = make(
+      [add(ids.header, null, 'Header', 'container', { x: 40, y: 20, width: 400, height: 100 }, wide.id)],
+      { screenshots: [wide] },
+    );
+    expect(compareVersions(a, moved).components[0]?.geometry).toMatchObject([
+      { moved: true, resized: false },
+    ]);
+  });
+
+  it('reports a reorder only relative to siblings present in both versions', () => {
+    const a = make([
+      add(ids.header, null, 'A', 'component'),
+      add(ids.nav, null, 'B', 'component'),
+      add(ids.stats, null, 'C', 'component'),
+    ]);
+    const removedFirst = make([add(ids.nav, null, 'B', 'component'), add(ids.stats, null, 'C', 'component')]);
+    expect(compareVersions(a, removedFirst).counts).toMatchObject({ removed: 1, unchanged: 2 });
+    const swapped = make([
+      add(ids.header, null, 'A', 'component'),
+      add(ids.stats, null, 'C', 'component'),
+      add(ids.nav, null, 'B', 'component'),
+    ]);
+    expect(
+      compareVersions(a, swapped)
+        .components.filter((component) => component.reordered === true)
+        .map((component) => component.name),
+    ).toEqual(['C', 'B']);
+  });
 });
 
 describe('prompt generator rules', () => {

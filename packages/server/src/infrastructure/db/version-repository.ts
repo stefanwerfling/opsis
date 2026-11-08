@@ -1,4 +1,5 @@
 import type {
+  ComponentHistoryRow,
   CompletenessReport,
   ComponentRevision,
   PromptVersion,
@@ -178,6 +179,25 @@ export class SqliteVersionRepository implements VersionRepository {
   findPromptVersion(id: string): PromptVersion | undefined {
     const row = this.db.get('SELECT * FROM prompt_versions WHERE id = :id', { id });
     return row ? toPromptVersion(row) : undefined;
+  }
+
+  listComponentHistory(uiViewId: string, componentId: string): ComponentHistoryRow[] {
+    return this.db
+      .all(
+        `SELECT v.id AS ui_version_id, src.component_revision_id, src.parent_component_id, cr.content
+           FROM spec_revision_components src
+           JOIN ui_versions v ON v.spec_revision_id = src.spec_revision_id
+           JOIN component_revisions cr ON cr.id = src.component_revision_id
+          WHERE v.ui_view_id = :uiViewId AND src.component_id = :componentId
+          ORDER BY v.version_no`,
+        { uiViewId, componentId },
+      )
+      .map((row) => ({
+        uiVersionId: str(row, 'ui_version_id'),
+        componentRevisionId: str(row, 'component_revision_id'),
+        parentComponentId: optStr(row, 'parent_component_id'),
+        content: str(row, 'content'),
+      }));
   }
 
   listSpecRevisionComponents(specRevisionId: string): SpecRevisionComponent[] {

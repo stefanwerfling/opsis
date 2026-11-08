@@ -5,10 +5,12 @@
  * component tree, descriptions, layout rules, functional requirements, interaction
  * states, responsive behaviour, acceptance criteria, open questions and limitations.
  *
- * Revisions: the diff against the previous version (existing / changed / unchanged) is
- * added in phase 4 together with `compareVersions`; until then the prompt references the
- * base version.
+ * Revisions: with the snapshot of the predecessor version the prompt starts with the
+ * differences to it (new / changed field by field / removed / unchanged, `compareVersions`).
+ * The full specification follows, so the prompt stays self-contained.
  */
+import { compareVersions } from '../diff.js';
+import { changesSection } from './changes.js';
 import { LABELS } from './labels.js';
 import {
   componentLabel,
@@ -28,7 +30,12 @@ import {
 } from './render.js';
 import type { ReleaseReferences, SpecSnapshot } from './snapshot.js';
 
-export const generatePrompt = (snapshot: SpecSnapshot, refs: ReleaseReferences): string => {
+export const generatePrompt = (
+  snapshot: SpecSnapshot,
+  refs: ReleaseReferences,
+  /** Snapshot of `refs.predecessor`; enables the change section of a revision. */
+  previous?: SpecSnapshot,
+): string => {
   const labels = LABELS[snapshot.project.promptLanguage];
   const t = labels.text;
 
@@ -125,6 +132,9 @@ export const generatePrompt = (snapshot: SpecSnapshot, refs: ReleaseReferences):
     [`## ${t.references}`, '', ...referenceLines(labels, snapshot, refs, GENERATOR_VERSION)],
     context,
     goal,
+    ...(previous !== undefined && refs.predecessor !== null
+      ? [changesSection(labels, previous, snapshot, refs.predecessor, compareVersions(previous, snapshot))]
+      : []),
     [`## ${t.screenshots}`, '', ...screenshotLines(labels, snapshot)],
     [`## ${t.componentTree}`, '', ...componentTree(labels, snapshot)],
     [`## ${t.componentDescriptions}`, '', ...fieldSection(labels, snapshot, fieldsOf('general'), '###')],

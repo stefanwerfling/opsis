@@ -93,6 +93,31 @@ export interface Labels {
     readonly kind: string;
     readonly parent: string;
     readonly root: string;
+    readonly changesTitle: Template;
+    readonly changesIntro: Template;
+    readonly noDifferences: Template;
+    readonly addedComponents: string;
+    readonly changedComponents: string;
+    readonly removedComponents: string;
+    readonly unchangedComponents: string;
+    readonly renamed: Template;
+    readonly kindChanged: Template;
+    readonly parentChanged: Template;
+    readonly reordered: string;
+    readonly regionChanged: Template;
+    readonly moved: string;
+    readonly resized: string;
+    readonly before: string;
+    readonly after: string;
+    readonly seeBelow: string;
+    readonly relationsAdded: string;
+    readonly relationsRemoved: string;
+    readonly relationsChanged: string;
+    readonly goalChanged: string;
+    readonly acceptanceAdded: string;
+    readonly acceptanceRemoved: string;
+    readonly questionsAdded: string;
+    readonly questionsRemoved: string;
   };
 }
 
@@ -264,6 +289,33 @@ const en: Labels = {
     kind: 'Type',
     parent: 'Parent',
     root: 'top level',
+    changesTitle: (v) => `Changes compared to V${String(v['versionNo'])}`,
+    changesIntro: (v) =>
+      `V${String(v['versionNo'])} is assumed to be implemented. Implement the differences listed here; the full specification below remains the reference for everything else.`,
+    noDifferences: (v) => `No specified differences to V${String(v['versionNo'])}.`,
+    addedComponents: 'New components',
+    changedComponents: 'Changed components',
+    removedComponents: 'Removed components (remove from the UI)',
+    unchangedComponents: 'Unchanged components (existing requirements, keep as they are)',
+    renamed: (v) => `Renamed: "${String(v['before'])}" → "${String(v['after'])}"`,
+    kindChanged: (v) => `Type: ${String(v['before'])} → ${String(v['after'])}`,
+    parentChanged: (v) => `Moved in the hierarchy: ${String(v['before'])} → ${String(v['after'])}`,
+    reordered: 'Order among its siblings changed',
+    regionChanged: (v) =>
+      `Region (${String(v['device'])}, ${String(v['what'])}): x ${String(v['bx'])}, y ${String(v['by'])}, ${String(v['bw'])}×${String(v['bh'])} → x ${String(v['ax'])}, y ${String(v['ay'])}, ${String(v['aw'])}×${String(v['ah'])}`,
+    moved: 'moved',
+    resized: 'resized',
+    before: 'before',
+    after: 'after',
+    seeBelow: 'described in full below',
+    relationsAdded: 'Relations added',
+    relationsRemoved: 'Relations removed',
+    relationsChanged: 'Relations changed',
+    goalChanged: 'Implementation goal changed',
+    acceptanceAdded: 'Global acceptance criteria added',
+    acceptanceRemoved: 'Global acceptance criteria removed',
+    questionsAdded: 'Open questions added',
+    questionsRemoved: 'Open questions removed',
   },
 };
 
@@ -435,6 +487,33 @@ const de: Labels = {
     kind: 'Typ',
     parent: 'Übergeordnet',
     root: 'oberste Ebene',
+    changesTitle: (v) => `Änderungen gegenüber V${String(v['versionNo'])}`,
+    changesIntro: (v) =>
+      `V${String(v['versionNo'])} gilt als umgesetzt. Setze die hier aufgeführten Unterschiede um; für alles Weitere bleibt die vollständige Spezifikation unten maßgeblich.`,
+    noDifferences: (v) => `Keine spezifizierten Unterschiede zu V${String(v['versionNo'])}.`,
+    addedComponents: 'Neue Komponenten',
+    changedComponents: 'Geänderte Komponenten',
+    removedComponents: 'Entfernte Komponenten (aus der UI entfernen)',
+    unchangedComponents: 'Unveränderte Komponenten (bestehende Anforderungen, beibehalten)',
+    renamed: (v) => `Umbenannt: „${String(v['before'])}“ → „${String(v['after'])}“`,
+    kindChanged: (v) => `Typ: ${String(v['before'])} → ${String(v['after'])}`,
+    parentChanged: (v) => `In der Hierarchie verschoben: ${String(v['before'])} → ${String(v['after'])}`,
+    reordered: 'Reihenfolge unter den Geschwistern geändert',
+    regionChanged: (v) =>
+      `Region (${String(v['device'])}, ${String(v['what'])}): x ${String(v['bx'])}, y ${String(v['by'])}, ${String(v['bw'])}×${String(v['bh'])} → x ${String(v['ax'])}, y ${String(v['ay'])}, ${String(v['aw'])}×${String(v['ah'])}`,
+    moved: 'verschoben',
+    resized: 'Größe geändert',
+    before: 'vorher',
+    after: 'nachher',
+    seeBelow: 'unten vollständig beschrieben',
+    relationsAdded: 'Hinzugefügte Beziehungen',
+    relationsRemoved: 'Entfernte Beziehungen',
+    relationsChanged: 'Geänderte Beziehungen',
+    goalChanged: 'Implementierungsziel geändert',
+    acceptanceAdded: 'Hinzugefügte globale Akzeptanzkriterien',
+    acceptanceRemoved: 'Entfernte globale Akzeptanzkriterien',
+    questionsAdded: 'Hinzugefügte offene Fragen',
+    questionsRemoved: 'Entfernte offene Fragen',
   },
 };
 

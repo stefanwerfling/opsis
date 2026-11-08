@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import type { Actor } from '../domain/actor.js';
+import { compareVersions, type ComponentDiff, type VersionDiff } from '../domain/diff.js';
 import { OpsisError } from '../domain/errors.js';
 import type { Session } from '../domain/session.js';
 import { renderSpecificationMarkdown } from '../domain/specification/markdown.js';
@@ -175,4 +176,94 @@ export const getImplementationPrompt = (
     specRevisionId: released.specRevision.id,
     promptVersionId: released.promptVersion.id,
   };
+};
+
+export interface VersionComparison {
+  readonly a: { readonly id: string; readonly versionNo: number };
+  readonly b: { readonly id: string; readonly versionNo: number };
+  readonly diff: VersionDiff;
+}
+
+/** Field-level comparison of two released versions of the same UI (architecture 05 §4). */
+export const compareUiVersions = (
+  ctx: AppContext,
+  actor: Actor,
+  versionIdA: string,
+  versionIdB: string,
+): VersionComparison => {
+  const a = getUiVersion(ctx, actor, versionIdA);
+  const b = getUiVersion(ctx, actor, versionIdB);
+  if (a.uiVersion.uiViewId !== b.uiVersion.uiViewId) {
+    throw new OpsisError('VALIDATION', 'Only versions of the same UI can be compared', {
+      a: a.uiVersion.uiViewId,
+      b: b.uiVersion.uiViewId,
+    });
+  }
+  return {
+    a: { id: a.uiVersion.id, versionNo: a.uiVersion.versionNo },
+    b: { id: b.uiVersion.id, versionNo: b.uiVersion.versionNo },
+    diff: compareVersions(a.snapshot, b.snapshot),
+  };
+};
+
+export interface ComponentHistoryEntry {
+  readonly version: Pick<UiVersion, 'id' | 'versionNo' | 'createdAt' | 'changeDescription'>;
+  /** null: the component does not exist in this version. */
+  readonly revision: {
+    readonly id: string;
+    readonly name: string;
+    readonly parentComponentId: string | null;
+  } | null;
+  /**
+   * Compared with the previous version (`compareVersions`): added, changed, unchanged or
+   * removed; null for versions before the component existed or after it stayed removed.
+   */
+  readonly change: ComponentDiff | null;
+}
+
+/**
+ * Timeline of one component over all versions of its UI (architecture 05 §5). The stored
+ * component revisions identify each state; whether it changed is decided semantically by
+ * `compareVersions`, because a region on a new screenshot alone is no change.
+ */
+export const componentHistory = (
+  ctx: AppContext,
+  actor: Actor,
+  uiViewId: string,
+  componentId: string,
+): ComponentHistoryEntry[] => {
+  const versions = listUiVersions(ctx, actor, uiViewId);
+  const rows = new Map(
+    ctx.repos.versions.listComponentHistory(uiViewId, componentId).map((row) => [row.uiVersionId, row]),
+  );
+  if (rows.size === 0)
+    throw new OpsisError('NOT_FOUND', `Component "${componentId}" has no released version`);
+  let previous: SpecSnapshot | null = null;
+  return versions.map((version) => {
+    const snapshot = loadVersion(ctx, version).snapshot;
+    const row = rows.get(version.id);
+    const change =
+      (previous === null
+        ? row && compareVersions({ ...snapshot, components: [] }, snapshot)
+        : compareVersions(previous, snapshot)
+      )?.components.find((component) => component.componentId === componentId) ?? null;
+    previous = snapshot;
+    return {
+      version: {
+        id: version.id,
+        versionNo: version.versionNo,
+        createdAt: version.createdAt,
+        changeDescription: version.changeDescription,
+      },
+      revision: row
+        ? {
+            id: row.componentRevisionId,
+            // Written by the release as canonical JSON of the component content.
+            name: (JSON.parse(row.content) as { name: string }).name,
+            parentComponentId: row.parentComponentId,
+          }
+        : null,
+      change,
+    };
+  });
 };

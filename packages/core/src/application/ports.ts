@@ -80,6 +80,14 @@ export interface DraftRepository {
   save(draft: Draft): void;
 }
 
+export interface ComponentHistoryRow {
+  readonly uiVersionId: string;
+  readonly componentRevisionId: string;
+  readonly parentComponentId: string | null;
+  /** Canonical JSON of name, kind, spec and regions. */
+  readonly content: string;
+}
+
 /** Immutable history: only inserts and reads (architecture 05 §1). */
 export interface VersionRepository {
   nextVersionNo(uiViewId: string): number;
@@ -96,6 +104,8 @@ export interface VersionRepository {
   findSpecRevision(id: string): SpecRevision | undefined;
   findPromptVersion(id: string): PromptVersion | undefined;
   listSpecRevisionComponents(specRevisionId: string): SpecRevisionComponent[];
+  /** Revisions of one component across the versions of a UI view, by version number. */
+  listComponentHistory(uiViewId: string, componentId: string): ComponentHistoryRow[];
 }
 
 export interface AgentGrantRepository {

@@ -3,13 +3,13 @@
  * is deterministic: same snapshot + references → byte-identical output.
  */
 import type { CompletenessIssue } from '../completeness.js';
-import type { SpecValue } from '../draft.js';
+import type { Relation, SpecValue } from '../draft.js';
 import { SPEC_GROUPS, type SpecGroup } from '../vocabulary.js';
 import type { Labels } from './labels.js';
 import type { ReleaseReferences, SnapshotComponent, SpecSnapshot } from './snapshot.js';
 
 /** Bumped whenever the generated wording or structure changes (stored with every prompt). */
-export const GENERATOR_VERSION = 'opsis-prompt/1.0.0';
+export const GENERATOR_VERSION = 'opsis-prompt/1.1.0';
 
 export type FieldRef = readonly [SpecGroup, string];
 
@@ -27,7 +27,7 @@ export const valueAt = (component: SnapshotComponent, [group, field]: FieldRef):
  * item, so lists or headings inside the user's text cannot merge with the generated
  * structure around it.
  */
-const verbatim = (text: string, indent: string): string => {
+export const verbatim = (text: string, indent: string): string => {
   const lines = text.replace(/\r\n?/g, '\n').trimEnd().split('\n');
   return lines.length === 1
     ? ` ${lines[0] ?? ''}`
@@ -201,15 +201,23 @@ export const screenshotLines = (labels: Labels, snapshot: SpecSnapshot): string[
   return [...lines, '', t.coordinatesNote];
 };
 
-export const relationLines = (labels: Labels, snapshot: SpecSnapshot): string[] => {
-  if (snapshot.relations.length === 0) return [`_${labels.none}_`];
+/** One relation as a list item; names are looked up in the given snapshots (first match). */
+export const relationLine = (
+  labels: Labels,
+  snapshots: readonly SpecSnapshot[],
+  relation: Relation,
+): string => {
   const name = (id: string): string =>
-    snapshot.components.find((component) => component.componentId === id)?.name ?? id;
-  return snapshot.relations.map((relation) => {
-    const head = `**${name(relation.fromComponentId)}** ${labels.relations[relation.kind]} **${name(relation.toComponentId)}**`;
-    return relation.description === '' ? `- ${head}` : item(`${head} – ${relation.description}`);
-  });
+    snapshots.flatMap((snapshot) => snapshot.components).find((component) => component.componentId === id)
+      ?.name ?? id;
+  const head = `**${name(relation.fromComponentId)}** ${labels.relations[relation.kind]} **${name(relation.toComponentId)}**`;
+  return relation.description === '' ? `- ${head}` : item(`${head} – ${relation.description}`);
 };
+
+export const relationLines = (labels: Labels, snapshot: SpecSnapshot): string[] =>
+  snapshot.relations.length === 0
+    ? [`_${labels.none}_`]
+    : snapshot.relations.map((relation) => relationLine(labels, [snapshot], relation));
 
 export const listOrNone = (labels: Labels, items: readonly string[]): string[] =>
   items.length === 0 ? [`_${labels.none}_`] : items.map((text) => item(text));

@@ -88,6 +88,19 @@ zwei Snapshots:
 | Relationen                                             | hinzugefügt/entfernt/geändert                                                                  |
 | Globale Angaben                                        | Ziel, Akzeptanzkriterien, offene Fragen                                                        |
 
+Umsetzung (Phase 4): `compareVersions` liefert je Komponente den Status `added`,
+`removed`, `changed` oder `unchanged` mit Umbenennung, Typwechsel, neuem Elternteil,
+Reihenfolge (relativ zu den Geschwistern, die in beiden Versionen existieren, damit ein
+gelöschtes Geschwister keine Scheinänderungen erzeugt), Geometrie je Geräteklasse
+(Toleranz 2 px, Region aus a über das Breitenverhältnis auf b skaliert) und feldgenauen
+Änderungen. Hinzu kommen Relationen, Ziel, globale Akzeptanzkriterien und offene Fragen.
+REST: `GET /api/v1/versions/:a/compare/:b`.
+
+Der Prompt einer Version mit Vorgänger beginnt nach dem Ziel mit „Änderungen gegenüber
+V(n)“ (Generator `opsis-prompt/1.1.0`). Verglichen wird mit dem **Vorgänger** (dem Head bei
+der Freigabe), denn diesen Stand hat der Agent umgesetzt. Die vollständige Spezifikation
+folgt weiterhin, der Prompt bleibt eigenständig.
+
 **Visueller Vergleich:**
 
 - Im Browser: Überlagerung beider Screenshots mit Transparenz-Regler, Wischmodus und
@@ -104,6 +117,12 @@ zwei Snapshots:
 liefert für jede Komponente die Liste ihrer Revisionen über alle Versionen. Ein Wechsel
 der `component_revision_id` zwischen zwei Versionen bedeutet eine Änderung. Daraus
 entsteht in der History-Ansicht die Zeitleiste je Komponente mit Diff.
+
+Umsetzung (Phase 4): `componentHistory` liefert je Version der UI die Komponenten-
+revision (oder `null`) und den Diff zur vorherigen Version. Ob sich eine Komponente
+geändert hat, entscheidet `compareVersions` und nicht der Revisionswechsel: Eine Region auf
+einem neuen Screenshot ergibt eine neue Revision, ist aber inhaltlich keine Änderung.
+REST: `GET /api/v1/projects/:pid/ui-views/:uiId/components/:componentId/history`.
 
 ## 6. Historische Rekonstruktion
 

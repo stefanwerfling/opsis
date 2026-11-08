@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  GENERATOR_VERSION,
   LOCAL_HUMAN,
   OpsisError,
   changeDraft,
+  compareUiVersions,
+  componentHistory,
   confirmAssignment,
   createProject,
   getDraft,
@@ -149,7 +152,7 @@ describe('releaseSpecification', () => {
     const { sessionId } = await submit();
     describeAll(sessionId);
     const { uiVersion, specRevision, promptVersion } = release(sessionId);
-    expect(promptVersion.generatorVersion).toBe('opsis-prompt/1.0.0');
+    expect(promptVersion.generatorVersion).toBe(GENERATOR_VERSION);
     for (const text of [
       `V1 (\`${uiVersion.id}\`)`,
       specRevision.id,
@@ -368,6 +371,30 @@ describe('revision sessions', () => {
     expect(v2.uiVersion).toMatchObject({ versionNo: 2, predecessorVersionId: v1.uiVersion.id });
     // Only the header changed (its region); the logo reuses its revision.
     expect(count('component_revisions')).toBe(before + 1);
+
+    // The prompt of V2 lists the differences to V1.
+    const prompt = getImplementationPrompt(env.ctx, LOCAL_HUMAN, { versionId: v2.uiVersion.id }).markdown;
+    expect(prompt).toContain('## Changes compared to V1');
+    expect(prompt).toContain('x 0, y 0, 1200×100 → x 0, y 0, 1200×120');
+    expect(prompt).toContain(
+      `### Unchanged components (existing requirements, keep as they are)\n\n- Logo (\`${logo}\`)`,
+    );
+
+    const comparison = compareUiVersions(env.ctx, LOCAL_HUMAN, v1.uiVersion.id, v2.uiVersion.id);
+    expect(comparison.diff.counts).toEqual({ added: 0, removed: 0, changed: 1, unchanged: 1 });
+
+    const history = componentHistory(env.ctx, LOCAL_HUMAN, details.uiView.id, header);
+    expect(history.map((entry) => [entry.version.versionNo, entry.change?.status])).toEqual([
+      [1, 'added'],
+      [2, 'changed'],
+    ]);
+    // The logo moved to a new screenshot without changing: a new revision, but no change.
+    const logoHistory = componentHistory(env.ctx, LOCAL_HUMAN, details.uiView.id, logo);
+    expect(logoHistory.map((entry) => entry.change?.status)).toEqual(['added', 'unchanged']);
+    expect(logoHistory[0]?.revision?.name).toBe('Logo');
+    expect(errorOf(() => componentHistory(env.ctx, LOCAL_HUMAN, details.uiView.id, 'cmp_missing')).code).toBe(
+      'NOT_FOUND',
+    );
   });
 });
 

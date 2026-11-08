@@ -22,6 +22,7 @@ import {
 import type { PromptVersion, SpecRevision, UiVersion } from '../domain/version.js';
 import { commit, parseInput, type AppContext } from './context.js';
 import { findSession, transitionSession } from './sessions.js';
+import { storedSnapshot } from './versions.js';
 
 export const ReleaseInputSchema = z.strictObject({
   /** Session row version the human saw (optimistic locking). */
@@ -178,7 +179,8 @@ export const releaseSpecification = (
       releasedBy: actorRef(actor),
       changeDescription: input.changeDescription.trim(),
     };
-    const markdown = generatePrompt(snapshot, references);
+    // Revision: the prompt lists the differences to the predecessor (the head).
+    const markdown = generatePrompt(snapshot, references, head ? storedSnapshot(ctx, head.id) : undefined);
     const promptVersion: PromptVersion = {
       id: newId('promptVersion'),
       specRevisionId: specRevision.id,

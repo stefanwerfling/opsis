@@ -1,6 +1,6 @@
 # Implementierungsprompt: Dashboard (ui-dashboard)
 
-> Dieser Prompt wurde von OPSIS (opsis-prompt/1.0.0) aus Spezifikationsrevision 1 der UI-Version V1 erzeugt.
+> Dieser Prompt wurde von OPSIS (opsis-prompt/1.1.0) aus Spezifikationsrevision 1 der UI-Version V1 erzeugt.
 > Die Spezifikation wurde von einem Menschen erstellt und freigegeben.
 > Setze genau das Spezifizierte um. Erfinde keine Anforderungen: Alles, was als „nicht spezifiziert“ markiert ist, ist offen – frage nach oder lass es weg, statt zu raten.
 > Als „automatisch erkannt, NICHT bestätigt“ markierte Werte sind keine Anforderungen.
@@ -13,7 +13,7 @@
 - **UI-Pfad:** `/dashboard`
 - **UI-Version:** V1 (`uvr_01JZ00000000000000000000V1`) – erste Version dieser UI
 - **Spezifikationsrevision:** 1 (`spr_01JZ00000000000000000000R1`)
-- **Prompt-Generator:** `opsis-prompt/1.0.0`
+- **Prompt-Generator:** `opsis-prompt/1.1.0`
 - **Freigegeben:** 2026-11-08T10:00:00.000Z durch human:local
 - **Session:** `ses_01JZ00000000000000000000S1` – Dashboard first draft
 - **Agenten-Session:** conversation-42

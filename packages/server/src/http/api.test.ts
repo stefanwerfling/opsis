@@ -319,6 +319,26 @@ describe('release API', () => {
     });
     expect(badKind.statusCode).toBe(400);
 
+    const compared = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/compare/${uiVersion.id}`,
+      headers: HOST,
+    });
+    expect(json<{ diff: { counts: Record<string, number> } }>(compared.body).diff.counts).toEqual({
+      added: 0,
+      removed: 0,
+      changed: 0,
+      unchanged: 1,
+    });
+    const history = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${project.id}/ui-views/ui-x/components/cmp_01JZ0000000000000000000001/history`,
+      headers: HOST,
+    });
+    expect(json<{ history: { change: { status: string } }[] }>(history.body).history).toMatchObject([
+      { change: { status: 'added' } },
+    ]);
+
     const reopened = await post(`/api/v1/sessions/${sessionId}/reopen`, { reason: 'typo' });
     expect(json<{ status: string }>(reopened.body).status).toBe('in_progress');
 

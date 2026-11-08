@@ -14,6 +14,8 @@ import {
   cancelSession,
   changeDraft,
   changeUiPath,
+  compareUiVersions,
+  componentHistory,
   confirmAssignment,
   createProject,
   createUiView,
@@ -49,6 +51,8 @@ const actor = LOCAL_HUMAN;
 const ProjectParams = z.object({ projectId: z.string().min(1).max(64) });
 const UiParams = ProjectParams.extend({ uiId: z.string().min(1).max(100) });
 const IdParams = z.object({ id: z.string().min(1).max(64) });
+const ComponentParams = UiParams.extend({ componentId: z.string().min(1).max(64) });
+const CompareParams = IdParams.extend({ otherId: z.string().min(1).max(64) });
 const ExportParams = IdParams.extend({ kind: z.string().min(1).max(32) });
 const ExportQuery = z.strictObject({ screenshotId: z.string().optional() });
 
@@ -167,6 +171,16 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
   app.get('/api/v1/projects/:projectId/ui-views/:uiId/versions', (request) => {
     const { projectId, uiId } = params(UiParams, request);
     return { versions: listUiVersions(ctx, actor, findUiView(ctx, actor, projectId, uiId).id) };
+  });
+  app.get('/api/v1/projects/:projectId/ui-views/:uiId/components/:componentId/history', (request) => {
+    const { projectId, uiId, componentId } = params(ComponentParams, request);
+    return {
+      history: componentHistory(ctx, actor, findUiView(ctx, actor, projectId, uiId).id, componentId),
+    };
+  });
+  app.get('/api/v1/versions/:id/compare/:otherId', (request) => {
+    const { id, otherId } = params(CompareParams, request);
+    return compareUiVersions(ctx, actor, id, otherId);
   });
   app.get('/api/v1/versions/:id', (request) => {
     const released = getUiVersion(ctx, actor, params(IdParams, request).id);
