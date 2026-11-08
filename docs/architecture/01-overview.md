@@ -90,6 +90,8 @@ DB-Trigger (siehe 05), nicht Event-Sourcing.
 
 - Standardmäßig Bindung an `127.0.0.1`. Für Netzwerkbetrieb ist eine explizite Konfiguration
   mit Token-Pflicht nötig.
+  Umsetzung (Phase 6): Eine Adresse außerhalb von Loopback wird ohne `OPSIS_UNSAFE_BIND=1`
+  abgelehnt, weil v1 keine Anmeldung für Menschen hat. Siehe [docs/security.md](../security.md).
 - Host- und Origin-Validierung vor `/mcp` (DNS-Rebinding-Schutz, Helfer aus dem SDK).
 - Agenten authentifizieren sich mit Bearer-Token. Gespeichert wird nur `sha256(token)`.
   Projektzugriff über explizite Grants (siehe 04).

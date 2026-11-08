@@ -129,6 +129,9 @@ export const registerMcpRoute = (
           ...(options.wait ? { wait: options.wait } : {}),
           ...(signal ? { signal } : {}),
           subscriptions: era === 'modern',
+          onInternalError: (error, tool) => {
+            app.log.error({ err: error, tool }, 'mcp tool failed');
+          },
         },
         actorOf(authInfo?.extra),
       );

@@ -21,6 +21,14 @@ export const createHostGuard = (allowedHostnames: readonly string[]) => {
     }
     const origin = request.headers.origin;
     const safeMethod = request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS';
+    // Defense in depth for browsers that omit Origin: Fetch Metadata names cross-site requests.
+    const fetchSite = request.headers['sec-fetch-site'];
+    if (!safeMethod && (fetchSite === 'cross-site' || fetchSite === 'same-site')) {
+      await reply
+        .status(403)
+        .send({ error: { code: 'FORBIDDEN_ORIGIN', message: 'Cross-origin request rejected' } });
+      return;
+    }
     if (!safeMethod && origin !== undefined) {
       let originHost: string;
       try {

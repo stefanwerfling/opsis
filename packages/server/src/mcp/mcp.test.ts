@@ -304,6 +304,19 @@ describe('MCP endpoint', () => {
     expect(status.status).toBe('awaiting_review');
   });
 
+  it('hides internal error details from the agent', async () => {
+    const { client } = await newAgent('a');
+    env.ctx.repos.projects.list = () => {
+      throw new Error('SQLITE_CORRUPT: /home/secret/data/opsis.db');
+    };
+    const result = await call(client, 'opsis_list_projects', {});
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe('{"error":{"code":"INTERNAL","message":"Internal server error"}}');
+    const failure = await client.listResources().catch((error: unknown) => String(error));
+    expect(failure).toContain('Internal server error');
+    expect(failure).not.toMatch(/secret|SQLITE/);
+  });
+
   it('answers every tool with NOT_FOUND for another project', async () => {
     // Owner agent with a full set of records.
     const owner = await newAgent('owner');

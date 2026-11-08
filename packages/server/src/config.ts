@@ -35,8 +35,31 @@ const defaultPublicUrl = (host: string, port: number): string => {
   return `http://${shown}:${String(port)}`;
 };
 
+/** Loopback addresses: only processes on this machine can connect. */
+export const isLoopbackHost = (host: string): boolean => {
+  const value = host.toLowerCase().replace(/^\[|\]$/g, '');
+  return value === 'localhost' || value === '::1' || /^127(\.\d{1,3}){3}$/.test(value);
+};
+
+/**
+ * The REST API and web UI trust the local human without a login (E1). On a non-loopback
+ * address anyone on the network would be that human, so binding there needs an explicit
+ * opt-in – for a container whose port is published only to the host's loopback, or behind
+ * an authenticating reverse proxy.
+ */
+const checkBind = (host: string, env: NodeJS.ProcessEnv): void => {
+  if (isLoopbackHost(host) || env['OPSIS_UNSAFE_BIND'] === '1') return;
+  throw new Error(
+    `OPSIS_HOST="${host}" is not a loopback address. The REST API and web UI have no login ` +
+      '(single-user, local operation), so everyone who can reach this address gets full access. ' +
+      'Set OPSIS_UNSAFE_BIND=1 only if access is restricted otherwise (e.g. a container port ' +
+      'published to 127.0.0.1, or an authenticating reverse proxy).',
+  );
+};
+
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): OpsisConfig => {
   const host = env['OPSIS_HOST'] ?? '127.0.0.1';
+  checkBind(host, env);
   const port = parsePort(env['OPSIS_PORT'], 4777);
   return {
     host,

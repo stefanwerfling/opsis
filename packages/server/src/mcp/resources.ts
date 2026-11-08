@@ -77,32 +77,54 @@ const toProtocolError = (uri: URL, error: OpsisError): ProtocolError => {
   });
 };
 
-const guarded =
+type InternalErrorSink = ((error: unknown, uri: string) => void) | undefined;
+
+const guardWith =
+  (onInternalError: InternalErrorSink) =>
   <A extends unknown[]>(read: (uri: URL, ...args: A) => ReadResourceResult | Promise<ReadResourceResult>) =>
   async (uri: URL, ...args: A): Promise<ReadResourceResult> => {
     try {
       return await read(uri, ...args);
     } catch (error) {
       if (isOpsisError(error)) throw toProtocolError(uri, error);
-      throw error;
+      // Internal messages (paths, SQL) must not reach the agent.
+      onInternalError?.(error, uri.href);
+      throw new ProtocolError(ProtocolErrorCode.InternalError, 'Internal server error');
     }
   };
 
 const openStatuses = SESSION_STATUSES.filter((status) => !isTerminal(status));
 
-export const registerResources = (server: McpServer, p: PresenterContext, actor: Actor): void => {
+export const registerResources = (
+  server: McpServer,
+  p: PresenterContext,
+  actor: Actor,
+  onInternalError?: (error: unknown, uri: string) => void,
+): void => {
   const ctx: AppContext = p.ctx;
+  const guarded = guardWith(onInternalError);
+  const guardedList =
+    <T>(list: () => T) =>
+    (): T => {
+      try {
+        return list();
+      } catch (error) {
+        if (isOpsisError(error)) throw toProtocolError(new URL('opsis://'), error);
+        onInternalError?.(error, 'resources/list');
+        throw new ProtocolError(ProtocolErrorCode.InternalError, 'Internal server error');
+      }
+    };
 
   server.registerResource(
     'project',
     new ResourceTemplate('opsis://projects/{project_id}', {
-      list: () => ({
+      list: guardedList(() => ({
         resources: listProjects(ctx, actor).map((project) => ({
           uri: resourceUri.project(project.id),
           name: project.name,
           mimeType: JSON_MIME,
         })),
-      }),
+      })),
     }),
     { title: 'Project', description: 'A project the agent has access to.', mimeType: JSON_MIME },
     guarded((uri, variables) =>
@@ -113,7 +135,7 @@ export const registerResources = (server: McpServer, p: PresenterContext, actor:
   server.registerResource(
     'ui-view',
     new ResourceTemplate('opsis://projects/{project_id}/ui/{ui_id}', {
-      list: () => ({
+      list: guardedList(() => ({
         resources: listProjects(ctx, actor).flatMap((project) =>
           listUiViews(ctx, actor, project.id).map((view) => ({
             uri: resourceUri.uiView(project.id, view.uiId),
@@ -121,7 +143,7 @@ export const registerResources = (server: McpServer, p: PresenterContext, actor:
             mimeType: JSON_MIME,
           })),
         ),
-      }),
+      })),
     }),
     { title: 'UI view', description: 'A UI view with its path history.', mimeType: JSON_MIME },
     guarded((uri, variables) => {
@@ -179,7 +201,7 @@ export const registerResources = (server: McpServer, p: PresenterContext, actor:
   server.registerResource(
     'session',
     new ResourceTemplate('opsis://sessions/{session_id}', {
-      list: () => ({
+      list: guardedList(() => ({
         resources: listProjects(ctx, actor).flatMap((project) =>
           listSessions(ctx, actor, { projectId: project.id, statuses: openStatuses }).map((session) => ({
             uri: resourceUri.session(session.id),
@@ -187,7 +209,7 @@ export const registerResources = (server: McpServer, p: PresenterContext, actor:
             mimeType: JSON_MIME,
           })),
         ),
-      }),
+      })),
     }),
     {
       title: 'Session',

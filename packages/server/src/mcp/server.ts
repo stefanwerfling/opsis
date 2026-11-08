@@ -185,11 +185,20 @@ export const errorResult = (error: OpsisError): CallToolResult => {
   return { isError: true, content: [{ type: 'text', text: JSON.stringify(body) }] };
 };
 
-const register = <I extends z.ZodObject>(
+/** Unexpected errors: logged by the host, the agent only learns that something failed. */
+const INTERNAL_RESULT: CallToolResult = {
+  isError: true,
+  content: [
+    { type: 'text', text: JSON.stringify({ error: { code: 'INTERNAL', message: 'Internal server error' } }) },
+  ],
+};
+
+const registerTool = <I extends z.ZodObject>(
   server: McpServer,
   name: string,
   definition: ToolDefinition<I>,
   run: (args: z.output<I>, extra: ServerContext) => ToolOutcome | Promise<ToolOutcome>,
+  onInternalError?: (error: unknown, tool: string) => void,
 ): void => {
   server.registerTool(
     name,
@@ -216,7 +225,9 @@ const register = <I extends z.ZodObject>(
         };
       } catch (error) {
         if (isOpsisError(error)) return errorResult(error);
-        throw error;
+        // Internal messages (paths, SQL) must not reach the agent.
+        onInternalError?.(error, name);
+        return INTERNAL_RESULT;
       }
     }) as ToolCallback<I>,
   );
@@ -227,6 +238,8 @@ const register = <I extends z.ZodObject>(
 export interface McpServerOptions extends PresenterContext {
   /** Timings of opsis_wait_for_specification (tests shorten them). */
   readonly wait?: { readonly pollMs?: number; readonly progressMs?: number };
+  /** Receives unexpected (non-domain) errors of tool calls for logging. */
+  readonly onInternalError?: (error: unknown, tool: string) => void;
   /** Aborted when the caller cancels or disconnects (see InflightCalls in route.ts). */
   readonly signal?: AbortSignal;
   /**
@@ -246,6 +259,14 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
       'opsis_wait_for_specification, then fetch opsis_get_implementation_prompt and implement it. ' +
       'Agents cannot edit or release specifications.',
   });
+  const register = <I extends z.ZodObject>(
+    target: McpServer,
+    name: string,
+    definition: ToolDefinition<I>,
+    run: (args: z.output<I>, extra: ServerContext) => ToolOutcome | Promise<ToolOutcome>,
+  ): void => {
+    registerTool(target, name, definition, run, p.onInternalError);
+  };
 
   // ── Projects ──
   register(
@@ -850,6 +871,6 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     },
   );
 
-  registerResources(server, p, actor);
+  registerResources(server, p, actor, p.onInternalError);
   return server;
 };
