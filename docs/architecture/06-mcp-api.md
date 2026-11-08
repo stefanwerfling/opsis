@@ -133,8 +133,23 @@ einer neuen Konversation heraus, denn der gesamte Zustand liegt in der Datenbank
   UI (`create`/`revise`). `mime_type` ist optional und nur informativ, maßgeblich ist der
   Inhalt. Zusätzlich gibt es `variant_label` und `title`. `get_screenshot` mit
   `include_image` liefert ein WebP-Thumbnail (längere Kante ≤ 1568 px).
-- `opsis_wait_for_specification` (Schritt 3), Ressourcen (Schritt 4) und
-  `opsis_request_upload` (Schritt 5) folgen.
+- Ressourcen (Schritt 4) und `opsis_request_upload` (Schritt 5) folgen.
+
+### Umsetzung des Wartens (Phase 5, Schritt 3)
+
+- `waitForSpecification` im Core (unabhängig vom MCP-Adapter) läuft wie oben beschrieben:
+  Zugriff prüfen, abonnieren, erneut lesen, warten. Es endet bei `ready`, `delivered`,
+  `cancelled` oder `failed`, nach dem Timeout (`done: false` plus `resume`, kein Fehler) oder
+  bei einem Abbruch. In jedem Fall werden Abonnement und Timer aufgeräumt.
+- Progress-Notifications alle 15 s (nur mit `progressToken`), Text z. B.
+  `in_progress: 4 components`. Ein fehlschlagender Progress beendet das Warten nicht.
+- **Abbruch:** Clients mit Protokoll 2025 (zustandsloser Fallback) senden
+  `notifications/cancelled` als eigenen POST, der bei einer anderen Serverinstanz ankommt.
+  Der `/mcp`-Endpunkt hält deshalb je Agent und JSON-RPC-ID ein Abort-Handle laufender
+  `tools/call`-Anfragen. Ein solcher Abbruch beendet das Warten, ebenso eine geschlossene
+  Verbindung. Ein Agent kann nur seine eigenen Aufrufe abbrechen. Laufen mehrere Clients
+  mit demselben Token und derselben Request-ID gleichzeitig, kann ein Abbruch den falschen
+  Wartevorgang beenden; der Agent ruft dann einfach erneut `wait` auf.
 
 ## 4. Ressourcen
 

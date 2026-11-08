@@ -18,6 +18,8 @@ export interface BuildAppOptions {
   readonly webRoot?: string;
   /** Public base URL for links handed to agents (editor URLs). */
   readonly publicUrl?: string;
+  /** Timings of the MCP long poll (tests shorten them). */
+  readonly mcpWait?: { readonly pollMs?: number; readonly progressMs?: number };
 }
 
 /**
@@ -53,6 +55,7 @@ export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstanc
   registerMcpRoute(app, options.ctx, {
     baseUrl: (options.publicUrl ?? 'http://127.0.0.1:4777').replace(/\/+$/, ''),
     allowedOriginHosts: allowedHosts,
+    ...(options.mcpWait ? { wait: options.mcpWait } : {}),
   });
 
   app.addHook('onSend', async (_request, reply) => {

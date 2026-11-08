@@ -39,6 +39,8 @@ import {
   readScreenshotImage,
   submitScreenshot,
   updateProject,
+  WAIT_LIMITS,
+  waitForSpecification,
   type Actor,
   type Metadata,
 } from '@opsis/core';
@@ -177,7 +179,14 @@ const register = <I extends z.ZodObject>(
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export const createOpsisMcpServer = (p: PresenterContext, actor: Actor): McpServer => {
+export interface McpServerOptions extends PresenterContext {
+  /** Timings of opsis_wait_for_specification (tests shorten them). */
+  readonly wait?: { readonly pollMs?: number; readonly progressMs?: number };
+  /** Aborted when the caller cancels or disconnects (see InflightCalls in route.ts). */
+  readonly signal?: AbortSignal;
+}
+
+export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServer => {
   const { ctx } = p;
   const server = new McpServer(MCP_SERVER_INFO, {
     instructions:
@@ -638,6 +647,78 @@ export const createOpsisMcpServer = (p: PresenterContext, actor: Actor): McpServ
     }
     return args.session_id === undefined ? { versionId: args.version_id } : { sessionId: args.session_id };
   };
+
+  register(
+    server,
+    'opsis_wait_for_specification',
+    {
+      title: 'Wait for specification',
+      description:
+        'Waits until a human has released the specification of a session (or the session ended), at most ' +
+        'timeout_seconds. Returns done=false on timeout – then simply call it again (resume). Sends progress ' +
+        'notifications every 15 s when the request carries a progressToken.',
+      input: z.object({
+        session_id: SessionId,
+        timeout_seconds: z
+          .number()
+          .int()
+          .min(WAIT_LIMITS.minSeconds)
+          .max(WAIT_LIMITS.maxSeconds)
+          .default(WAIT_LIMITS.defaultSeconds),
+      }),
+      output: z.object({
+        done: z.boolean(),
+        status: z.enum(SESSION_STATUSES),
+        waited_seconds: z.number(),
+        next_action: z.string(),
+        resume: z.object({ tool: z.string(), arguments: z.record(z.string(), z.unknown()) }).optional(),
+      }),
+      readOnly: true,
+      idempotent: true,
+    },
+    async ({ session_id, timeout_seconds }, extra) => {
+      const progressToken = extra.mcpReq._meta?.progressToken;
+      const result = await waitForSpecification(ctx, actor, session_id, {
+        timeoutMs: timeout_seconds * 1000,
+        signal: p.signal ? AbortSignal.any([extra.mcpReq.signal, p.signal]) : extra.mcpReq.signal,
+        ...(p.wait?.pollMs === undefined ? {} : { pollMs: p.wait.pollMs }),
+        ...(p.wait?.progressMs === undefined ? {} : { progressMs: p.wait.progressMs }),
+        ...(progressToken === undefined
+          ? {}
+          : {
+              onProgress: (progress) =>
+                extra.mcpReq.notify({
+                  method: 'notifications/progress',
+                  params: {
+                    progressToken,
+                    progress: progress.waitedSeconds,
+                    message: `${progress.status}: ${String(progress.componentCount)} components`,
+                  },
+                }),
+            }),
+      });
+      const resume = result.done
+        ? {}
+        : {
+            resume: {
+              tool: 'opsis_wait_for_specification',
+              arguments: { session_id, timeout_seconds },
+            },
+          };
+      return {
+        data: {
+          done: result.done,
+          status: result.status,
+          waited_seconds: result.waitedSeconds,
+          next_action: nextAction(result.status),
+          ...resume,
+        },
+        text: result.done
+          ? `${result.status}. ${nextAction(result.status)}`
+          : `Still ${result.status} after ${String(result.waitedSeconds)} s. Call opsis_wait_for_specification again.`,
+      };
+    },
+  );
 
   register(
     server,

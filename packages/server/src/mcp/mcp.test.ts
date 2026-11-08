@@ -22,7 +22,12 @@ const clients: Client[] = [];
 
 beforeEach(async () => {
   env = createTestEnv();
-  app = await buildApp({ ctx: env.ctx, bus: env.bus, publicUrl: 'http://127.0.0.1:4777' });
+  app = await buildApp({
+    ctx: env.ctx,
+    bus: env.bus,
+    publicUrl: 'http://127.0.0.1:4777',
+    mcpWait: { pollMs: 50, progressMs: 40 },
+  });
   await app.listen({ host: '127.0.0.1', port: 0 });
   url = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}/mcp`;
 });
@@ -114,6 +119,7 @@ const TOOLS = [
   'opsis_list_screenshots',
   'opsis_get_session',
   'opsis_get_session_status',
+  'opsis_wait_for_specification',
   'opsis_get_specification',
   'opsis_get_implementation_prompt',
   'opsis_cancel_session',
@@ -296,6 +302,7 @@ describe('MCP endpoint', () => {
       ['opsis_list_screenshots', { project_id: projectId }],
       ['opsis_get_session', { session_id: submitted.session_id }],
       ['opsis_get_session_status', { session_id: submitted.session_id }],
+      ['opsis_wait_for_specification', { session_id: submitted.session_id, timeout_seconds: 1 }],
       ['opsis_get_specification', { session_id: submitted.session_id }],
       ['opsis_get_specification', { version_id: versionId, format: 'markdown' }],
       ['opsis_get_implementation_prompt', { session_id: submitted.session_id }],
@@ -342,5 +349,81 @@ describe('MCP endpoint', () => {
       reason: 'wrong screenshot',
     });
     expect(cancelled.session.status).toBe('cancelled');
+  });
+
+  it('waits for the release with progress notifications and a resume hint', async () => {
+    const { client } = await newAgent('a');
+    const { project } = await ok<{ project: { project_id: string } }>(client, 'opsis_create_project', {
+      name: 'Shop',
+    });
+    const submitted = await ok<{ session_id: string; screenshot_id: string }>(
+      client,
+      'opsis_submit_screenshot',
+      {
+        project_id: project.project_id,
+        ui_path: '/x',
+        image_base64: await base64Image(),
+      },
+    );
+
+    const timedOut = await ok<{
+      done: boolean;
+      status: string;
+      resume: { tool: string; arguments: unknown };
+    }>(client, 'opsis_wait_for_specification', { session_id: submitted.session_id, timeout_seconds: 1 });
+    expect(timedOut).toMatchObject({
+      done: false,
+      status: 'awaiting_review',
+      resume: {
+        tool: 'opsis_wait_for_specification',
+        arguments: { session_id: submitted.session_id, timeout_seconds: 1 },
+      },
+    });
+
+    const progress: { progress: number; message?: string | undefined }[] = [];
+    setTimeout(() => {
+      humanReleases(submitted.session_id, submitted.screenshot_id);
+    }, 300);
+    const result = (await client.callTool(
+      {
+        name: 'opsis_wait_for_specification',
+        arguments: { session_id: submitted.session_id, timeout_seconds: 30 },
+      },
+      { onprogress: (entry) => progress.push(entry), resetTimeoutOnProgress: true },
+    )) as ToolResult;
+    expect(result.structuredContent).toMatchObject({ done: true, status: 'ready' });
+    expect(result.structuredContent).not.toHaveProperty('resume');
+    expect(progress.length).toBeGreaterThanOrEqual(1);
+    expect(progress[0]?.message).toMatch(/^awaiting_review: 0 components$/);
+  });
+
+  it('cleans up the wait when the client cancels the request', async () => {
+    const { client } = await newAgent('a');
+    const { project } = await ok<{ project: { project_id: string } }>(client, 'opsis_create_project', {
+      name: 'Shop',
+    });
+    const submitted = await ok<{ session_id: string }>(client, 'opsis_submit_screenshot', {
+      project_id: project.project_id,
+      ui_path: '/x',
+      image_base64: await base64Image(),
+    });
+    const baseline = env.bus.listenerCount;
+    const controller = new AbortController();
+    const pending = client.callTool(
+      {
+        name: 'opsis_wait_for_specification',
+        arguments: { session_id: submitted.session_id, timeout_seconds: 60 },
+      },
+      { signal: controller.signal },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(env.bus.listenerCount).toBe(baseline + 1);
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+    // The server notices the cancellation and unsubscribes.
+    for (let i = 0; i < 50 && env.bus.listenerCount > baseline; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(env.bus.listenerCount).toBe(baseline);
   });
 });

@@ -31,3 +31,4 @@ export * from './application/screenshots.js';
 export * from './application/sessions.js';
 export * from './application/ui-views.js';
 export * from './application/versions.js';
+export * from './application/wait.js';

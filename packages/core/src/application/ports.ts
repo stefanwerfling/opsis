@@ -233,4 +233,6 @@ export type EventListener = (event: DomainEvent) => void;
 
 export interface EventPublisher {
   publish(event: DomainEvent): void;
+  /** Returns an unsubscribe function. */
+  subscribe(listener: EventListener): () => void;
 }
