@@ -145,9 +145,31 @@ export interface Transactor {
   run<T>(work: () => T): T;
 }
 
-/** SHA-256 of UTF-8 text as lowercase hex (deterministic content hashes). */
+/** SHA-256 as lowercase hex (deterministic content hashes). */
 export interface Hasher {
+  /** Of UTF-8 text. */
   sha256(text: string): string;
+  sha256Bytes(bytes: Uint8Array): string;
+}
+
+export interface ArchiveEntry {
+  readonly path: string;
+  readonly bytes: Uint8Array;
+}
+
+/** Limits checked while unpacking, before anything is stored (architecture 05 §7). */
+export interface ArchiveLimits {
+  readonly maxEntries: number;
+  readonly maxEntryBytes: number;
+  readonly maxTotalBytes: number;
+  /** Only known paths are allowed; everything else rejects the archive. */
+  readonly isAllowedPath: (path: string) => boolean;
+}
+
+/** ZIP packing/unpacking. `unpack` rejects anything outside the limits with VALIDATION. */
+export interface ArchiveCodec {
+  pack(entries: readonly ArchiveEntry[]): Promise<Uint8Array>;
+  unpack(bytes: Uint8Array, limits: ArchiveLimits): Promise<ArchiveEntry[]>;
 }
 
 export interface Clock {

@@ -167,6 +167,7 @@ export const versionView: View = (root, params) => {
         h(
           'nav',
           { class: 'row downloads', attrs: { 'aria-label': t('version.downloads') } },
+          download(api.exportUrl(versionId, 'zip'), t('version.exportZip')),
           download(api.exportUrl(versionId, 'json'), t('version.exportJson')),
           download(api.exportUrl(versionId, 'specification'), t('version.exportSpecification')),
           download(api.exportUrl(versionId, 'prompt'), t('version.exportPrompt')),

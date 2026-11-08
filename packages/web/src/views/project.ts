@@ -1,5 +1,6 @@
 import type { DomainEvent } from '@opsis/core';
 import { api } from '../api.js';
+import { createImportForm } from '../components/import-form.js';
 import { createUploadForm } from '../components/upload-form.js';
 import { OPEN_STATUSES, sessionTable, uiViewTable } from '../components/lists.js';
 import { formValue, h } from '../dom.js';
@@ -136,6 +137,7 @@ export const projectView: View = (root, params) => {
           h('summary', {}, t('project.newUiView')),
           createUiViewForm(projectId),
         ),
+        h('details', { class: 'panel' }, h('summary', {}, t('project.import')), createImportForm(projectId)),
       ),
     ),
   );

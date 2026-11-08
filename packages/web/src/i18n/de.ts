@@ -37,6 +37,12 @@ export const de: Messages = {
   'project.newUiView': 'Neue UI-Ansicht',
   'project.upload': 'Screenshot hochladen',
   'project.filterOpen': 'Nur offene',
+  'project.import': 'Version importieren (ZIP)',
+  'import.file': 'OPSIS-Archiv (.opsis.zip)',
+  'import.hint':
+    'Vor dem Speichern wird jede Datei gegen das Manifest und die festgehaltenen Hashes geprüft. Die Version wird auf die UI-Ansicht mit derselben UI-ID gesetzt; bereits vergebene IDs erhalten neue.',
+  'import.submit': 'Importieren',
+  'import.missingFile': 'Bitte ein Archiv auswählen.',
 
   'ui.uiId': 'UI-ID',
   'ui.uiIdHint': 'wird aus dem Pfad abgeleitet, wenn leer, z. B. ui-admin-users-id',
@@ -342,6 +348,7 @@ export const de: Messages = {
   'version.copy': 'Kopieren',
   'version.copied': 'Kopiert',
   'version.downloads': 'Downloads',
+  'version.exportZip': 'Archiv (.zip)',
   'version.exportJson': 'JSON-Export',
   'version.exportSpecification': 'Spezifikation (.md)',
   'version.exportPrompt': 'Prompt (.md)',

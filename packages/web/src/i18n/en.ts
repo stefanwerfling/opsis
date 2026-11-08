@@ -34,6 +34,12 @@ export const en = {
   'project.newUiView': 'New UI view',
   'project.upload': 'Upload screenshot',
   'project.filterOpen': 'Open only',
+  'project.import': 'Import version (ZIP)',
+  'import.file': 'OPSIS archive (.opsis.zip)',
+  'import.hint':
+    'Every file is checked against the manifest and the recorded hashes before anything is stored. The version is added on top of the UI view with the same UI-ID; ids that are already taken get new ones.',
+  'import.submit': 'Import',
+  'import.missingFile': 'Please choose an archive.',
 
   'ui.uiId': 'UI ID',
   'ui.uiIdHint': 'derived from the path if empty, e.g. ui-admin-users-id',
@@ -335,6 +341,7 @@ export const en = {
   'version.copy': 'Copy',
   'version.copied': 'Copied',
   'version.downloads': 'Downloads',
+  'version.exportZip': 'Archive (.zip)',
   'version.exportJson': 'JSON export',
   'version.exportSpecification': 'Specification (.md)',
   'version.exportPrompt': 'Prompt (.md)',

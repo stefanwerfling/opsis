@@ -4,6 +4,7 @@ import type {
   Draft,
   DraftOperation,
   ExportKind,
+  ImportResult,
   CreateUiViewInput,
   ChangeUiPathInput,
   Project,
@@ -194,6 +195,8 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
       ).screenshots,
     uploadScreenshot: (projectId: string, form: FormData) =>
       request<SubmitScreenshotResult>('POST', base + pathTo('projects', projectId, 'screenshots'), form),
+    importArchive: (projectId: string, form: FormData) =>
+      request<ImportResult>('POST', base + pathTo('projects', projectId, 'import'), form),
     getScreenshot: (screenshotId: string) =>
       request<Screenshot>('GET', base + pathTo('screenshots', screenshotId)),
     screenshotImageUrl: (screenshotId: string) => base + pathTo('screenshots', screenshotId, 'image'),

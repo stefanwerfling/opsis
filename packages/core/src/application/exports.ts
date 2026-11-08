@@ -11,12 +11,12 @@ import { buildAnnotation } from '../domain/specification/annotation.js';
 import { renderSpecificationMarkdown } from '../domain/specification/markdown.js';
 import { buildSpecificationDocument, type SnapshotScreenshot } from '../domain/specification/snapshot.js';
 import { parseInput, type AppContext } from './context.js';
-import type { PixelDiffResult } from './ports.js';
+import type { ArchiveEntry, PixelDiffResult } from './ports.js';
 import { getUiVersion, type ReleasedVersion } from './versions.js';
 
 export const EXPORT_FORMAT = 'opsis-export/v1';
 
-export const EXPORT_KINDS = ['json', 'specification', 'prompt', 'screenshot', 'annotated'] as const;
+export const EXPORT_KINDS = ['json', 'specification', 'prompt', 'screenshot', 'annotated', 'zip'] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
 
 export const ExportInputSchema = z.strictObject({
@@ -74,6 +74,74 @@ export const buildExportDocument = (released: ReleasedVersion) => {
 
 const text = (value: string): Uint8Array => new TextEncoder().encode(value);
 
+// ── ZIP bundle (architecture 05 §7) ───────────────────────────────────────────
+
+export const ARCHIVE_FORMAT = 'opsis-archive/v1';
+
+/** Paths inside the ZIP; everything else is rejected on import. */
+export const ARCHIVE_PATHS = {
+  manifest: 'manifest.json',
+  document: 'version.json',
+  specification: 'specification.md',
+  prompt: 'prompt.md',
+  screenshot: (screenshot: Pick<SnapshotScreenshot, 'id' | 'sequenceNo' | 'mimeType'>) =>
+    `screenshots/${String(screenshot.sequenceNo)}-${screenshot.id}.${EXTENSIONS[screenshot.mimeType] ?? 'bin'}`,
+  annotated: (screenshot: Pick<SnapshotScreenshot, 'id' | 'sequenceNo'>) =>
+    `screenshots/${String(screenshot.sequenceNo)}-${screenshot.id}-annotated.png`,
+} as const;
+
+export const ARCHIVE_PATH_PATTERN =
+  /^(manifest\.json|version\.json|specification\.md|prompt\.md|screenshots\/[0-9]{1,9}-[a-z]{3}_[0-9A-HJKMNP-TV-Z]{26}(-annotated\.png|\.(png|jpg|webp)))$/;
+
+export interface ArchiveManifest {
+  readonly format: typeof ARCHIVE_FORMAT;
+  readonly exportFormat: typeof EXPORT_FORMAT;
+  readonly uiId: string;
+  readonly uiVersionId: string;
+  readonly versionNo: number;
+  /** Every other file with its SHA-256 and size, sorted by path. */
+  readonly files: readonly { readonly path: string; readonly sha256: string; readonly bytes: number }[];
+}
+
+const buildArchive = async (ctx: AppContext, released: ReleasedVersion): Promise<Uint8Array> => {
+  const files: ArchiveEntry[] = [
+    {
+      path: ARCHIVE_PATHS.document,
+      bytes: text(`${JSON.stringify(buildExportDocument(released), null, 2)}\n`),
+    },
+    {
+      path: ARCHIVE_PATHS.specification,
+      bytes: text(renderSpecificationMarkdown(released.snapshot, released.references)),
+    },
+    { path: ARCHIVE_PATHS.prompt, bytes: text(released.promptVersion.markdown) },
+  ];
+  for (const screenshot of released.snapshot.screenshots) {
+    const original = await ctx.blobs.read(screenshot.sha256);
+    files.push({ path: ARCHIVE_PATHS.screenshot(screenshot), bytes: original });
+    files.push({
+      path: ARCHIVE_PATHS.annotated(screenshot),
+      bytes: await ctx.annotator.annotate(original, buildAnnotation(released.snapshot, screenshot.id)),
+    });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  const manifest: ArchiveManifest = {
+    format: ARCHIVE_FORMAT,
+    exportFormat: EXPORT_FORMAT,
+    uiId: released.snapshot.uiView.uiId,
+    uiVersionId: released.uiVersion.id,
+    versionNo: released.uiVersion.versionNo,
+    files: files.map((file) => ({
+      path: file.path,
+      sha256: ctx.hash.sha256Bytes(file.bytes),
+      bytes: file.bytes.byteLength,
+    })),
+  };
+  return ctx.archives.pack([
+    { path: ARCHIVE_PATHS.manifest, bytes: text(`${JSON.stringify(manifest, null, 2)}\n`) },
+    ...files,
+  ]);
+};
+
 const pickScreenshot = (released: ReleasedVersion, screenshotId: string | undefined): SnapshotScreenshot => {
   const id = screenshotId ?? released.snapshot.primaryScreenshotId;
   const screenshot = released.snapshot.screenshots.find((candidate) => candidate.id === id);
@@ -125,6 +193,12 @@ export const exportVersion = async (
         bytes: await ctx.blobs.read(screenshot.sha256),
       };
     }
+    case 'zip':
+      return {
+        filename: `${base}.opsis.zip`,
+        contentType: 'application/zip',
+        bytes: await buildArchive(ctx, released),
+      };
     case 'annotated': {
       const screenshot = pickScreenshot(released, input.screenshotId);
       const original = await ctx.blobs.read(screenshot.sha256);

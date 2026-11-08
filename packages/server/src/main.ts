@@ -9,6 +9,7 @@ import { Database } from './infrastructure/db/database.js';
 import { createRepositories } from './infrastructure/db/repositories.js';
 import { FileBlobStore } from './infrastructure/files/blob-store.js';
 import { SharpImageAnnotator } from './infrastructure/files/annotator.js';
+import { ZipArchiveCodec } from './infrastructure/files/archive.js';
 import { PixelmatchImageDiffer } from './infrastructure/files/differ.js';
 import { SharpImageInspector } from './infrastructure/files/image-inspector.js';
 
@@ -36,6 +37,7 @@ const main = async (): Promise<void> => {
     images: new SharpImageInspector(),
     annotator: new SharpImageAnnotator(),
     differ: new PixelmatchImageDiffer(),
+    archives: new ZipArchiveCodec(),
     blobs: new FileBlobStore(join(config.dataDir, 'blobs')),
     hash: nodeHasher,
   };

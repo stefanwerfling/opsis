@@ -162,7 +162,7 @@ describe('exportVersion', () => {
       (await exportError(exportVersion(env.ctx, LOCAL_HUMAN, versionId, { kind: 'json', screenshotId })))
         .code,
     ).toBe('VALIDATION');
-    expect((await exportError(exportVersion(env.ctx, LOCAL_HUMAN, versionId, { kind: 'zip' }))).code).toBe(
+    expect((await exportError(exportVersion(env.ctx, LOCAL_HUMAN, versionId, { kind: 'tar' }))).code).toBe(
       'VALIDATION',
     );
     expect(

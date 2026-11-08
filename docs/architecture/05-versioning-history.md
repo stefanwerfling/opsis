@@ -169,3 +169,31 @@ Pfade im ZIP, maximale Gesamtgröße und Anzahl der Einträge sind begrenzt. Imp
 Versionen werden als neue unveränderliche Datensätze angelegt. Original-IDs bleiben
 erhalten, wenn sie im Zielsystem frei sind. Andernfalls entsteht ein Import-Mapping, das
 im Audit-Log protokolliert wird (E6).
+
+Umsetzung (Phase 4):
+
+- **Export** `GET /api/v1/versions/:id/export/zip` liefert `<ui-id>-v<n>.opsis.zip` (`application/zip`)
+  mit `manifest.json` (`opsis-archive/v1`; `uiId`, `uiVersionId`, `versionNo`, Dateien sortiert
+  mit `sha256` und Größe), `version.json` (`opsis-export/v1`), `specification.md`, `prompt.md`,
+  `screenshots/<nr>-<id>.<ext>` und `screenshots/<nr>-<id>-annotated.png`. Das Archiv ist
+  deterministisch (feste Zeitstempel und Rechte), derselbe Stand ergibt dieselben Bytes.
+- **Import** `POST /api/v1/projects/:projectId/import` (multipart, eine Datei, nur Mensch,
+  max. 256 MB) prüft vor jeder Speicherung:
+  1. ZIP-Struktur (yauzl, strikte Dateinamen): nur reguläre Dateien auf den obigen Pfaden,
+     keine Duplikate, keine Verschlüsselung, Grenzen für Anzahl (≤ 104), Einzelgröße (64 MB)
+     und Gesamtgröße (512 MB) – vorab anhand der Deklaration und erneut beim Entpacken.
+  2. Manifest: Schema, Format; die Einträge entsprechen genau den gelisteten Dateien,
+     SHA-256 und Größe stimmen.
+  3. `version.json` gegen ein striktes Schema (inkl. Vokabular und `DRAFT_LIMITS`), der
+     Snapshot-Hash gegen `specRevision.snapshotSha256`, der Prompt-Hash gegen
+     `promptVersion.sha256`, die IDs von Manifest, Version und Snapshot untereinander, die
+     internen Referenzen des Snapshots (Eltern, Regionen, Relationen) und jeder Screenshot
+     per Hash und vollständiger Dekodierung (Typ und Maße).
+- Ergebnis ist eine neue Version auf dem Head der UI-Ansicht mit derselben UI-ID im
+  Zielprojekt (fehlt sie, wird sie angelegt) samt einer Import-Session im Status `ready`.
+  Ein Screenshot mit gleicher ID, gleichem Projekt und gleichem Inhalt wird
+  wiederverwendet. Sonst gilt E6: belegte IDs (Screenshot, SpecRevision, PromptVersion,
+  UiVersion) erhalten neue, die in Snapshot und Prompt ersetzt werden. Die Hashes werden
+  dann neu berechnet; die Original-Hashes und das Mapping stehen im Audit-Log (`import`).
+- Projekt-, UI- und Session-IDs im importierten Snapshot bleiben die der Quelle
+  (Herkunftsnachweis); maßgeblich für das Zielsystem sind die Datensätze.

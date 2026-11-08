@@ -13,15 +13,11 @@ import type { Session } from '../domain/session.js';
 import { canonicalJson } from '../domain/specification/canonical-json.js';
 import { generatePrompt } from '../domain/specification/prompt.js';
 import { GENERATOR_VERSION } from '../domain/specification/render.js';
-import {
-  buildSnapshot,
-  componentContent,
-  type ReleaseReferences,
-  type VersionRef,
-} from '../domain/specification/snapshot.js';
+import { buildSnapshot, type ReleaseReferences, type VersionRef } from '../domain/specification/snapshot.js';
 import type { PromptVersion, SpecRevision, UiVersion } from '../domain/version.js';
 import { commit, parseInput, type AppContext } from './context.js';
 import { findSession, transitionSession } from './sessions.js';
+import { storeComponentRevisions, storeComponentTree } from './history-store.js';
 import { storedSnapshot } from './versions.js';
 
 export const ReleaseInputSchema = z.strictObject({
@@ -122,23 +118,7 @@ export const releaseSpecification = (
     });
 
     // 4. Component revisions, deduplicated by content hash.
-    const componentRevisionIds = new Map<string, string>();
-    for (const component of snapshot.components) {
-      const content = canonicalJson(componentContent(component));
-      const contentSha256 = ctx.hash.sha256(content);
-      let revision = ctx.repos.versions.findComponentRevision(component.componentId, contentSha256);
-      if (!revision) {
-        revision = {
-          id: newId('componentRevision'),
-          componentId: component.componentId,
-          contentSha256,
-          content,
-          createdAt: uow.now,
-        };
-        ctx.repos.versions.insertComponentRevision(revision);
-      }
-      componentRevisionIds.set(component.componentId, revision.id);
-    }
+    const componentRevisionIds = storeComponentRevisions(ctx, snapshot, uow.now);
 
     // 5./6. Spec revision with its component tree.
     const headVersion = head === null ? undefined : ctx.repos.versions.findUiVersion(head.id);
@@ -158,15 +138,7 @@ export const releaseSpecification = (
       releasedAt: uow.now,
     };
     ctx.repos.versions.insertSpecRevision(specRevision);
-    for (const component of snapshot.components) {
-      ctx.repos.versions.insertSpecRevisionComponent({
-        specRevisionId: specRevision.id,
-        componentRevisionId: componentRevisionIds.get(component.componentId) ?? '',
-        componentId: component.componentId,
-        parentComponentId: component.parentId,
-        order: component.order,
-      });
-    }
+    storeComponentTree(ctx, specRevision.id, snapshot, componentRevisionIds);
 
     // 7. Prompt, referencing the UI version and spec revision created here.
     const uiVersionId = newId('uiVersion');

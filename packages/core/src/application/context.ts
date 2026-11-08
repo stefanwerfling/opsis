@@ -5,6 +5,7 @@ import type { DomainEvent } from '../domain/events.js';
 import { newId } from '../domain/ids.js';
 import type { AccessPolicy } from './access-policy.js';
 import type {
+  ArchiveCodec,
   BlobStore,
   Clock,
   EventPublisher,
@@ -26,6 +27,7 @@ export interface AppContext {
   readonly images: ImageInspector;
   readonly annotator: ImageAnnotator;
   readonly differ: ImageDiffer;
+  readonly archives: ArchiveCodec;
   readonly blobs: BlobStore;
   readonly hash: Hasher;
 }

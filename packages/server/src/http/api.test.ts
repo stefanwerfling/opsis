@@ -314,7 +314,7 @@ describe('release API', () => {
     );
     const badKind = await app.inject({
       method: 'GET',
-      url: `/api/v1/versions/${uiVersion.id}/export/zip`,
+      url: `/api/v1/versions/${uiVersion.id}/export/tar`,
       headers: HOST,
     });
     expect(badKind.statusCode).toBe(400);
@@ -338,6 +338,37 @@ describe('release API', () => {
     expect(json<{ history: { change: { status: string } }[] }>(history.body).history).toMatchObject([
       { change: { status: 'added' } },
     ]);
+
+    const zip = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/export/zip`,
+      headers: HOST,
+    });
+    expect(zip.headers['content-type']).toBe('application/zip');
+    const target = await app.inject({
+      method: 'POST',
+      url: '/api/v1/projects',
+      headers: HOST,
+      payload: { name: 'Copy' },
+    });
+    const targetId = json<{ id: string }>(target.body).id;
+    const archive = new FormData();
+    archive.append('archive', new Blob([new Uint8Array(zip.rawPayload)]), 'ui-x.opsis.zip');
+    const imported = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${targetId}/import`,
+      headers: HOST,
+      payload: archive,
+    });
+    expect(imported.statusCode).toBe(201);
+    expect(json<{ uiVersion: { versionNo: number } }>(imported.body).uiVersion.versionNo).toBe(1);
+    const notMultipart = await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${project.id}/import`,
+      headers: HOST,
+      payload: { archive: 'x' },
+    });
+    expect(notMultipart.statusCode).toBe(415);
 
     const reopened = await post(`/api/v1/sessions/${sessionId}/reopen`, { reason: 'typo' });
     expect(json<{ status: string }>(reopened.body).status).toBe('in_progress');

@@ -29,6 +29,8 @@ import {
   getScreenshot,
   getSession,
   getUiView,
+  IMPORT_LIMITS,
+  importVersionArchive,
   listProjects,
   listScreenshots,
   listSessions,
@@ -301,6 +303,25 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
         ...optional('title', f.title),
       },
       new Uint8Array(image.buffer, image.byteOffset, image.byteLength),
+    );
+    return reply.status(201).send(result);
+  });
+  // ── Import (05 §7) ────────────────────────────────────────────────────────
+  app.post('/api/v1/projects/:projectId/import', async (request, reply) => {
+    const { projectId } = params(ProjectParams, request);
+    if (!request.isMultipart()) throw new OpsisError('UNSUPPORTED_MEDIA', 'Expected multipart/form-data');
+    let archive: Buffer | undefined;
+    for await (const part of request.parts({ limits: { fileSize: IMPORT_LIMITS.maxArchiveBytes } })) {
+      if (part.type !== 'file') continue;
+      if (archive !== undefined) throw new OpsisError('VALIDATION', 'Exactly one archive file is expected');
+      archive = await part.toBuffer();
+    }
+    if (archive === undefined) throw new OpsisError('VALIDATION', 'Missing archive file');
+    const result = await importVersionArchive(
+      ctx,
+      actor,
+      { projectId },
+      new Uint8Array(archive.buffer, archive.byteOffset, archive.byteLength),
     );
     return reply.status(201).send(result);
   });

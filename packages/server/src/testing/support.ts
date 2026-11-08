@@ -8,6 +8,7 @@ import { createRepositories } from '../infrastructure/db/repositories.js';
 import { FileBlobStore } from '../infrastructure/files/blob-store.js';
 import { nodeHasher } from '../infrastructure/hash.js';
 import { SharpImageAnnotator } from '../infrastructure/files/annotator.js';
+import { ZipArchiveCodec } from '../infrastructure/files/archive.js';
 import { PixelmatchImageDiffer } from '../infrastructure/files/differ.js';
 import { SharpImageInspector } from '../infrastructure/files/image-inspector.js';
 
@@ -48,6 +49,7 @@ export const createTestEnv = (): TestEnv => {
     images: new SharpImageInspector(),
     annotator: new SharpImageAnnotator(),
     differ: new PixelmatchImageDiffer(),
+    archives: new ZipArchiveCodec(),
     blobs,
     hash: nodeHasher,
   };
