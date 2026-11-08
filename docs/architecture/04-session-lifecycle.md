@@ -59,6 +59,8 @@ Hinweis zu `created/uploading`: Bei MCP mit Inline-Bild (Base64) laufen diese Zu
 innerhalb eines Tool-Aufrufs durch. Sie sind trotzdem real und werden protokolliert, denn
 beim zweistufigen Upload (siehe 06, `request_upload`) bleibt eine Session sichtbar in
 `uploading`, bis das Bild eintrifft. Läuft der Upload-Slot ab, geht die Session nach `failed`.
+Umsetzung (Phase 5, Schritt 5): Slot-Lebensdauer 15 Minuten, Ablauf minütlich durch den
+Server (Akteur `system`); eine Variante zu einer offenen Session ändert deren Status nicht.
 
 ## 2. Parallele Sessions und Konflikte
 

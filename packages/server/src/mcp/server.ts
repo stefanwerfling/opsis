@@ -39,13 +39,17 @@ import {
   readScreenshotImage,
   submitScreenshot,
   updateProject,
+  UPLOAD_SLOT_TTL_MS,
   WAIT_LIMITS,
+  requestUpload,
+  type SubmitScreenshotInput,
   waitForSpecification,
   type Actor,
   type Metadata,
 } from '@opsis/core';
 import { registerResources } from './resources.js';
 import {
+  editorUrl,
   nextAction,
   presentProject,
   presentScreenshot,
@@ -113,6 +117,46 @@ const pageOf = <T>(items: readonly T[], cursor: string | undefined) => {
       : undefined;
   return { page, next };
 };
+
+/** Metadata of a screenshot submission (inline or two-stage upload). */
+const ScreenshotMetaInput = z.object({
+  project_id: ProjectId,
+  ui_path: UiPathSchema.optional().describe('Logical path of the UI, e.g. "/dashboard"'),
+  ui_id: UiId.optional().describe(
+    'Existing UI view; with an unknown UI-ID a UI view with exactly this id is created',
+  ),
+  ui_id_hint: UiId.optional().describe('Preferred UI-ID for a new UI view'),
+  mime_type: z
+    .enum(IMAGE_MIME_TYPES)
+    .optional()
+    .describe('Informational; the format is determined from the content'),
+  viewport_width: z.number().int().min(1).max(100_000).optional(),
+  viewport_height: z.number().int().min(1).max(100_000).optional(),
+  device_type: z.enum(DEVICE_CATEGORIES).optional(),
+  variant_label: z.string().max(100).optional().describe('e.g. "dark mode", "error state"'),
+  description: z.string().max(10_000).optional().describe('What the screenshot shows and what should change'),
+  title: z.string().max(200).optional(),
+  session_id: SessionId.optional().describe('Add a variant to this open session instead of creating one'),
+  agent_session_ref: z.string().max(200).optional().describe('Your own conversation/session reference'),
+});
+
+const submitInputOf = (args: z.output<typeof ScreenshotMetaInput>): SubmitScreenshotInput => ({
+  projectId: args.project_id,
+  source: 'mcp',
+  ...(args.ui_path === undefined ? {} : { uiPath: args.ui_path }),
+  ...(args.ui_id === undefined ? {} : { uiId: args.ui_id }),
+  ...(args.ui_id_hint === undefined ? {} : { uiIdHint: args.ui_id_hint }),
+  ...(args.session_id === undefined ? {} : { sessionId: args.session_id }),
+  ...(args.agent_session_ref === undefined ? {} : { agentSessionRef: args.agent_session_ref }),
+  ...(args.title === undefined ? {} : { title: args.title }),
+  metadata: {
+    ...(args.viewport_width === undefined ? {} : { viewportWidth: args.viewport_width }),
+    ...(args.viewport_height === undefined ? {} : { viewportHeight: args.viewport_height }),
+    ...(args.device_type === undefined ? {} : { deviceCategory: args.device_type }),
+    ...(args.variant_label === undefined ? {} : { variantLabel: args.variant_label }),
+    ...(args.description === undefined ? {} : { description: args.description }),
+  },
+});
 
 // ── Registration helper ───────────────────────────────────────────────────────
 
@@ -435,32 +479,10 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
         'Submits a screenshot of a UI for specification by a human. Creates a session (or, with ' +
         'session_id, adds a variant such as the mobile view to an open session). Give the returned ' +
         'editor_url to the human, then call opsis_wait_for_specification.',
-      input: z.object({
-        project_id: ProjectId,
-        ui_path: UiPathSchema.optional().describe('Logical path of the UI, e.g. "/dashboard"'),
-        ui_id: UiId.optional().describe(
-          'Existing UI view; with an unknown UI-ID a UI view with exactly this id is created',
-        ),
-        ui_id_hint: UiId.optional().describe('Preferred UI-ID for a new UI view'),
+      input: ScreenshotMetaInput.extend({
         image_base64: z
           .string()
           .describe('PNG, JPEG or WebP, base64 without data: prefix, max. 20 MB decoded'),
-        mime_type: z
-          .enum(IMAGE_MIME_TYPES)
-          .optional()
-          .describe('Informational; the format is determined from the content'),
-        viewport_width: z.number().int().min(1).max(100_000).optional(),
-        viewport_height: z.number().int().min(1).max(100_000).optional(),
-        device_type: z.enum(DEVICE_CATEGORIES).optional(),
-        variant_label: z.string().max(100).optional().describe('e.g. "dark mode", "error state"'),
-        description: z
-          .string()
-          .max(10_000)
-          .optional()
-          .describe('What the screenshot shows and what should change'),
-        title: z.string().max(200).optional(),
-        session_id: SessionId.optional(),
-        agent_session_ref: z.string().max(200).optional().describe('Your own conversation/session reference'),
       }),
       output: z.object({
         session_id: z.string(),
@@ -477,28 +499,7 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     },
     async (args) => {
       const bytes = decodeImage(args.image_base64);
-      const result = await submitScreenshot(
-        ctx,
-        actor,
-        {
-          projectId: args.project_id,
-          source: 'mcp',
-          ...(args.ui_path === undefined ? {} : { uiPath: args.ui_path }),
-          ...(args.ui_id === undefined ? {} : { uiId: args.ui_id }),
-          ...(args.ui_id_hint === undefined ? {} : { uiIdHint: args.ui_id_hint }),
-          ...(args.session_id === undefined ? {} : { sessionId: args.session_id }),
-          ...(args.agent_session_ref === undefined ? {} : { agentSessionRef: args.agent_session_ref }),
-          ...(args.title === undefined ? {} : { title: args.title }),
-          metadata: {
-            ...(args.viewport_width === undefined ? {} : { viewportWidth: args.viewport_width }),
-            ...(args.viewport_height === undefined ? {} : { viewportHeight: args.viewport_height }),
-            ...(args.device_type === undefined ? {} : { deviceCategory: args.device_type }),
-            ...(args.variant_label === undefined ? {} : { variantLabel: args.variant_label }),
-            ...(args.description === undefined ? {} : { description: args.description }),
-          },
-        },
-        bytes,
-      );
+      const result = await submitScreenshot(ctx, actor, submitInputOf(args), bytes);
       const session = presentSession(p, result.session);
       return {
         data: {
@@ -514,6 +515,49 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
         text:
           `Session ${result.session.id} (${result.session.status}) for ${result.uiView.uiId}. ` +
           `Ask the human to specify it at ${session.editor_url}`,
+      };
+    },
+  );
+
+  register(
+    server,
+    'opsis_request_upload',
+    {
+      title: 'Request upload',
+      description:
+        'Two-stage upload for large images: send the metadata, get a one-time upload_url, then PUT the raw ' +
+        `image to it (e.g. curl -T shot.png -H 'content-type: image/png' <upload_url>) within ` +
+        `${String(UPLOAD_SLOT_TTL_MS / 60_000)} minutes. The session stays "uploading" until then; an expired ` +
+        'slot moves it to "failed".',
+      input: ScreenshotMetaInput,
+      output: z.object({
+        session_id: z.string(),
+        ui_id: z.string(),
+        status: z.enum(SESSION_STATUSES),
+        upload_url: z.string(),
+        method: z.literal('PUT'),
+        expires_at: z.string(),
+        max_bytes: z.number(),
+        editor_url: z.string(),
+      }),
+      readOnly: false,
+      idempotent: false,
+    },
+    (args) => {
+      const result = requestUpload(ctx, actor, submitInputOf(args));
+      const uploadUrl = `${p.baseUrl}/api/v1/uploads/${result.token}`;
+      return {
+        data: {
+          session_id: result.session.id,
+          ui_id: result.uiView.uiId,
+          status: result.session.status,
+          upload_url: uploadUrl,
+          method: 'PUT',
+          expires_at: result.expiresAt,
+          max_bytes: IMAGE_LIMITS.maxBytes,
+          editor_url: editorUrl(p, result.session.id),
+        },
+        text: `PUT the image to ${uploadUrl} before ${result.expiresAt}.`,
       };
     },
   );

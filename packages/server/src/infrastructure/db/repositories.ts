@@ -12,6 +12,8 @@ import {
   type Agent,
   type AgentGrantRepository,
   type AgentRepository,
+  type UploadSlot,
+  type UploadSlotRepository,
   type AuditEntry,
   type AuditLog,
   type BlobRecord,
@@ -514,6 +516,76 @@ const toAgent = (row: Row): Agent => ({
   revokedAt: optStr(row, 'revoked_at'),
 });
 
+const toUploadSlot = (row: Row): UploadSlot => ({
+  id: str(row, 'id'),
+  projectId: str(row, 'project_id'),
+  sessionId: str(row, 'session_id'),
+  agentId: optStr(row, 'agent_id'),
+  request: str(row, 'request'),
+  status: oneOf(row, 'status', ['open', 'completed', 'expired'] as const),
+  createdAt: str(row, 'created_at'),
+  expiresAt: str(row, 'expires_at'),
+  completedAt: optStr(row, 'completed_at'),
+  screenshotId: optStr(row, 'screenshot_id'),
+});
+
+class SqliteUploadSlotRepository implements UploadSlotRepository {
+  constructor(private readonly db: Database) {}
+
+  insert(slot: UploadSlot, tokenHash: string): void {
+    this.db.execute(
+      `INSERT INTO upload_slots (id, token_hash, project_id, session_id, agent_id, request, status, created_at,
+         expires_at, completed_at, screenshot_id)
+       VALUES (:id, :tokenHash, :projectId, :sessionId, :agentId, :request, :status, :createdAt, :expiresAt,
+         :completedAt, :screenshotId)`,
+      {
+        id: slot.id,
+        tokenHash,
+        projectId: slot.projectId,
+        sessionId: slot.sessionId,
+        agentId: slot.agentId,
+        request: slot.request,
+        status: slot.status,
+        createdAt: slot.createdAt,
+        expiresAt: slot.expiresAt,
+        completedAt: slot.completedAt,
+        screenshotId: slot.screenshotId,
+      },
+    );
+  }
+
+  findByTokenHash(tokenHash: string): UploadSlot | undefined {
+    const row = this.db.get('SELECT * FROM upload_slots WHERE token_hash = :tokenHash', { tokenHash });
+    return row && toUploadSlot(row);
+  }
+
+  complete(id: string, screenshotId: string, at: string): boolean {
+    return (
+      this.db.execute(
+        `UPDATE upload_slots SET status = 'completed', completed_at = :at, screenshot_id = :screenshotId
+         WHERE id = :id AND status = 'open'`,
+        { id, screenshotId, at },
+      ) > 0
+    );
+  }
+
+  listExpired(now: string): UploadSlot[] {
+    return this.db
+      .all("SELECT * FROM upload_slots WHERE status = 'open' AND expires_at <= :now ORDER BY expires_at", {
+        now,
+      })
+      .map(toUploadSlot);
+  }
+
+  expire(id: string): boolean {
+    return (
+      this.db.execute("UPDATE upload_slots SET status = 'expired' WHERE id = :id AND status = 'open'", {
+        id,
+      }) > 0
+    );
+  }
+}
+
 class SqliteAgentRepository implements AgentRepository {
   constructor(private readonly db: Database) {}
 
@@ -739,6 +811,7 @@ export const createRepositories = (db: Database): Repositories => ({
   drafts: new SqliteDraftRepository(db),
   versions: new SqliteVersionRepository(db),
   agents: new SqliteAgentRepository(db),
+  uploads: new SqliteUploadSlotRepository(db),
   grants: new SqliteGrantRepository(db),
   audit: new SqliteAuditLog(db),
 });

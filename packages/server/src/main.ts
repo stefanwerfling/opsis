@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { EventBus } from '@opsis/core';
+import { EventBus, expireUploadSlots } from '@opsis/core';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createAppContext } from './context.js';
@@ -37,8 +37,20 @@ export const startServer = async (): Promise<void> => {
     app.log.error({ err: error, event: eventType }, 'event listener failed');
   };
 
+  // Expired upload slots move their sessions to "failed" (04, two-stage upload).
+  const expiry = setInterval(() => {
+    try {
+      const expired = expireUploadSlots(ctx);
+      if (expired > 0) app.log.info({ expired }, 'upload slots expired');
+    } catch (error) {
+      app.log.error({ err: error }, 'expiring upload slots failed');
+    }
+  }, 60_000);
+  expiry.unref();
+
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, 'shutting down');
+    clearInterval(expiry);
     await app.close();
     db.close();
     process.exit(0);

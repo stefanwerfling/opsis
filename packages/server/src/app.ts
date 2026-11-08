@@ -9,6 +9,7 @@ import { errorHandler } from './http/errors.js';
 import { registerEventsRoute } from './http/events-route.js';
 import { createHostGuard } from './http/host-guard.js';
 import { registerMcpRoute } from './mcp/route.js';
+import { UPLOAD_PATH_PREFIX, registerUploadRoute } from './http/upload-route.js';
 
 export interface BuildAppOptions {
   readonly ctx: AppContext;
@@ -43,10 +44,32 @@ export const WEB_CSP = [
 
 export const LOCAL_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'] as const;
 
+/** Upload URLs carry a one-time token; request logs show `/api/v1/uploads/[redacted]`. */
+export const redactUploadToken = (url: string): string =>
+  url.startsWith(UPLOAD_PATH_PREFIX) ? `${UPLOAD_PATH_PREFIX}[redacted]` : url;
+
+const withRedactedUploadTokens = (
+  logger: FastifyServerOptions['logger'],
+): FastifyServerOptions['logger'] & {} => {
+  if (logger === false || logger === undefined) return false;
+  const base = typeof logger === 'object' ? logger : {};
+  return {
+    ...base,
+    serializers: {
+      req: (request) => ({
+        method: request.method,
+        url: redactUploadToken(request.url),
+        host: request.hostname,
+        remoteAddress: request.ip,
+      }),
+    },
+  };
+};
+
 /** Builds the HTTP application: REST, SSE, the MCP endpoint and the web UI. */
 export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstance> => {
   const app = fastify({
-    logger: options.logger ?? false,
+    logger: withRedactedUploadTokens(options.logger ?? false),
     bodyLimit: 1024 * 1024,
   });
   app.setErrorHandler(errorHandler);
@@ -54,6 +77,7 @@ export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(multipart, { limits: MULTIPART_LIMITS });
   registerApiRoutes(app, options.ctx);
   registerEventsRoute(app, options.bus);
+  await registerUploadRoute(app, options.ctx);
   const allowedHosts = [...LOCAL_HOSTNAMES, ...(options.allowedHosts ?? [])];
   registerMcpRoute(app, options.ctx, {
     baseUrl: (options.publicUrl ?? 'http://127.0.0.1:4777').replace(/\/+$/, ''),

@@ -17,6 +17,7 @@ export const ID_PREFIXES = {
   componentRevision: 'cmr',
   promptVersion: 'prm',
   agent: 'agt',
+  uploadSlot: 'upl',
   audit: 'aud',
 } as const;
 

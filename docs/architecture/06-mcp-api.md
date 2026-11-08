@@ -133,7 +133,26 @@ einer neuen Konversation heraus, denn der gesamte Zustand liegt in der Datenbank
   UI (`create`/`revise`). `mime_type` ist optional und nur informativ, maßgeblich ist der
   Inhalt. Zusätzlich gibt es `variant_label` und `title`. `get_screenshot` mit
   `include_image` liefert ein WebP-Thumbnail (längere Kante ≤ 1568 px).
-- Ressourcen (Schritt 4) und `opsis_request_upload` (Schritt 5) folgen.
+- Ressourcen siehe Schritt 4 (§4), `opsis_request_upload` siehe Schritt 5 (unten).
+
+### Umsetzung des zweistufigen Uploads (Phase 5, Schritt 5)
+
+- `opsis_request_upload` nimmt dieselben Metadaten wie `opsis_submit_screenshot`, aber kein
+  Bild. Es legt die Session an (Status `uploading`) oder bezieht sich auf eine offene
+  Session (`session_id`, Variante) und liefert `{ session_id, ui_id, status, upload_url,
+method: "PUT", expires_at, max_bytes, editor_url }`.
+- `upload_url` = `<public_url>/api/v1/uploads/opsisupl_…`. Der Token ist einmalig, 15 Minuten
+  gültig, und nur sein SHA-256 wird gespeichert (Tabelle `upload_slots`). Der Token ist die
+  Autorisierung; ein Bearer-Header ist nicht nötig. In Request-Logs erscheint die URL als
+  `/api/v1/uploads/[redacted]`.
+- `PUT` mit dem rohen Bild als Body (`image/png|jpeg|webp` oder
+  `application/octet-stream`, max. 20 MB) liefert `201 { session_id, screenshot_id, ui_id,
+status }`. Das Format bestimmt der Inhalt. Ein abgelehntes Bild lässt den Slot offen.
+  Unbekannte, verbrauchte oder abgelaufene Tokens ergeben einheitlich 404.
+- Beim Hochladen gilt weiterhin der Zugriff des anfragenden Agenten: Ist er widerrufen oder
+  hat er die Projektfreigabe verloren, schlägt der Upload fehl (404).
+- Abgelaufene Slots werden minütlich (und beim nächsten Upload-Versuch) auf `expired`
+  gesetzt; eine noch wartende Session geht nach `failed` (Notiz „upload slot expired“).
 
 ### Umsetzung des Wartens (Phase 5, Schritt 3)
 

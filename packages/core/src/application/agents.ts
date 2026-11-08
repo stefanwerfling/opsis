@@ -12,23 +12,11 @@ import type { Agent, AgentWithGrants } from '../domain/agent.js';
 import type { Actor } from '../domain/actor.js';
 import { OpsisError } from '../domain/errors.js';
 import { newId } from '../domain/ids.js';
+import { randomToken } from '../domain/token.js';
 import { commit, parseInput, type AppContext } from './context.js';
 
 const assertHuman = (actor: Actor): void => {
   if (actor.type !== 'human') throw new OpsisError('FORBIDDEN_ACTOR', 'Only a human can manage agents');
-};
-
-const base64url = (bytes: Uint8Array): string => {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-};
-
-/** 256 bits from the platform CSPRNG (Web Crypto, available in Node and browsers). */
-const generateToken = (): string => {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return AGENT_TOKEN_PREFIX + base64url(bytes);
 };
 
 const withGrants = (ctx: AppContext, agent: Agent): AgentWithGrants => ({
@@ -60,7 +48,7 @@ export const createAgent = (ctx: AppContext, actor: Actor, input: unknown): Crea
   return commit(ctx, actor, (uow) => {
     for (const projectId of data.projectIds) findProject(ctx, projectId);
     const agent: Agent = { id: newId('agent'), name: data.name, createdAt: uow.now, revokedAt: null };
-    const token = generateToken();
+    const token = randomToken(AGENT_TOKEN_PREFIX);
     ctx.repos.agents.insert(agent, ctx.hash.sha256(token));
     for (const projectId of new Set(data.projectIds)) ctx.repos.grants.grant(agent.id, projectId, uow.now);
     uow.audit({

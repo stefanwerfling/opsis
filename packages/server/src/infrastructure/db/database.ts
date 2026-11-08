@@ -3,6 +3,7 @@ import type { Transactor } from '@opsis/core';
 import { sql as migration001 } from './migrations/001-initial.js';
 import { sql as migration002 } from './migrations/002-draft-revision.js';
 import { sql as migration003 } from './migrations/003-session-rebase.js';
+import { sql as migration004 } from './migrations/004-upload-slots.js';
 
 interface Migration {
   readonly version: number;
@@ -14,6 +15,7 @@ const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'initial', sql: migration001 },
   { version: 2, name: 'draft-revision', sql: migration002 },
   { version: 3, name: 'session-rebase', sql: migration003 },
+  { version: 4, name: 'upload-slots', sql: migration004 },
 ];
 
 export type Params = Record<string, SQLInputValue>;

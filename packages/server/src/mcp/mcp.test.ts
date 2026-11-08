@@ -123,6 +123,7 @@ const TOOLS = [
   'opsis_create_ui_view',
   'opsis_get_ui_history',
   'opsis_submit_screenshot',
+  'opsis_request_upload',
   'opsis_get_screenshot',
   'opsis_list_screenshots',
   'opsis_get_session',
@@ -275,6 +276,34 @@ describe('MCP endpoint', () => {
     expect(await submit('A'.repeat(Math.ceil(IMAGE_LIMITS.maxBytes / 3) * 4 + 4))).toBe('PAYLOAD_TOO_LARGE');
   });
 
+  it('runs the two-stage upload: request_upload → PUT → awaiting_review', async () => {
+    const { client } = await newAgent('a');
+    const { project } = await ok<{ project: { project_id: string } }>(client, 'opsis_create_project', {
+      name: 'Shop',
+    });
+    const slot = await ok<{
+      session_id: string;
+      status: string;
+      upload_url: string;
+      method: string;
+      expires_at: string;
+    }>(client, 'opsis_request_upload', { project_id: project.project_id, ui_path: '/big', title: 'Big' });
+    expect(slot).toMatchObject({ status: 'uploading', method: 'PUT' });
+    expect(slot.upload_url).toMatch(/^http:\/\/127\.0\.0\.1:4777\/api\/v1\/uploads\/opsisupl_/);
+
+    const target = new URL(slot.upload_url);
+    const uploaded = await fetch(new URL(target.pathname, url), {
+      method: 'PUT',
+      headers: { 'content-type': 'image/png' },
+      body: Buffer.from(await base64Image(), 'base64'),
+    });
+    expect(uploaded.status).toBe(201);
+    const status = await ok<{ status: string }>(client, 'opsis_get_session_status', {
+      session_id: slot.session_id,
+    });
+    expect(status.status).toBe('awaiting_review');
+  });
+
   it('answers every tool with NOT_FOUND for another project', async () => {
     // Owner agent with a full set of records.
     const owner = await newAgent('owner');
@@ -306,6 +335,8 @@ describe('MCP endpoint', () => {
         'opsis_submit_screenshot',
         { project_id: ownProject, session_id: submitted.session_id, image_base64: image },
       ],
+      ['opsis_request_upload', { project_id: projectId, ui_path: '/x' }],
+      ['opsis_request_upload', { project_id: ownProject, session_id: submitted.session_id }],
       ['opsis_get_screenshot', { screenshot_id: submitted.screenshot_id, include_image: true }],
       ['opsis_list_screenshots', { project_id: projectId }],
       ['opsis_get_session', { session_id: submitted.session_id }],

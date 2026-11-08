@@ -116,6 +116,33 @@ export interface AgentGrantRepository {
   revoke(agentId: string, projectId: string): boolean;
 }
 
+export type UploadSlotStatus = 'open' | 'completed' | 'expired';
+
+/** A one-time upload slot of the two-stage upload (06 `opsis_request_upload`). */
+export interface UploadSlot {
+  readonly id: string;
+  readonly projectId: string;
+  readonly sessionId: string;
+  readonly agentId: string | null;
+  /** The validated submit input without the image (JSON). */
+  readonly request: string;
+  readonly status: UploadSlotStatus;
+  readonly createdAt: Timestamp;
+  readonly expiresAt: Timestamp;
+  readonly completedAt: Timestamp | null;
+  readonly screenshotId: string | null;
+}
+
+export interface UploadSlotRepository {
+  insert(slot: UploadSlot, tokenHash: string): void;
+  findByTokenHash(tokenHash: string): UploadSlot | undefined;
+  /** Open → completed; false if the slot was no longer open (used twice concurrently). */
+  complete(id: string, screenshotId: string, at: Timestamp): boolean;
+  /** Open slots with `expires_at <= now`. */
+  listExpired(now: Timestamp): UploadSlot[];
+  expire(id: string): boolean;
+}
+
 export interface AgentRepository {
   insert(agent: Agent, tokenHash: string): void;
   findById(id: string): Agent | undefined;
@@ -147,6 +174,7 @@ export interface Repositories {
   readonly drafts: DraftRepository;
   readonly versions: VersionRepository;
   readonly agents: AgentRepository;
+  readonly uploads: UploadSlotRepository;
   readonly grants: AgentGrantRepository;
   readonly audit: AuditLog;
 }
