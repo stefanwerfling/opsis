@@ -216,7 +216,7 @@ Ein reine Funktion `assessCompleteness(draft) → { blocking[], warnings[], unkn
 Jeder Eintrag hat eine stabile ID aus Code und Bezug (z. B. `missing_description:cmp_…`),
 damit Bestätigungen gültig bleiben, solange dasselbe Problem besteht. Codes:
 `no_components`, `assignment_unconfirmed`, `open_conflict`, `dangling_relation`,
-`unnamed_component` (blockierend) sowie `missing_description`, `missing_acceptance`,
+`unnamed_component`, `inherited_region` (blockierend) sowie `missing_description`, `missing_acceptance`,
 `unconfirmed_auto_detected`, `open_questions`, `region_outside_parent`,
 `disabled_on_visual_area` (Warnungen). `unknownFields` listet je Komponente alle nicht
 spezifizierten Felder (`gruppe.feld`).

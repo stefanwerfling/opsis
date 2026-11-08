@@ -8,6 +8,7 @@ import {
   findComponent,
   newId,
   regionOn,
+  type CompletenessIssue,
   type Conflict,
   type DraftComponent,
   type Rect,
@@ -163,6 +164,7 @@ export class InspectorPanel {
     return [
       h('h2', {}, t('editor.draftTitle')),
       h('p', { class: 'muted' }, t('editor.draftHint')),
+      this.section(() => this.inheritedBlock()),
       this.text({
         label: t('editor.goal'),
         multiline: true,
@@ -349,11 +351,30 @@ export class InspectorPanel {
   /** Completeness issues of this component (the release dialog shows all of them). */
   private hintsBlock(componentId: string): Child[] {
     const draft = this.editor.draft;
-    const report = assessCompleteness(draft, { assignment: 'confirmed' });
+    const report = assessCompleteness(draft, {
+      assignment: 'confirmed',
+      screenshotIds: this.editor.sessionScreenshotIds,
+    });
     const issues = [...report.blocking, ...report.warnings].filter(
       (issue) => issue.componentId === componentId,
     );
     if (issues.length === 0) return [];
+    const adopt = (issue: CompletenessIssue): Child =>
+      issue.code === 'inherited_region' &&
+      !this.editor.readOnly &&
+      h(
+        'button',
+        {
+          class: 'link',
+          attrs: { type: 'button' },
+          onClick: () => {
+            // Release the focus first, so the section can be rebuilt.
+            (document.activeElement as HTMLElement | null)?.blur();
+            this.editor.adoptInheritedRegions([componentId]);
+          },
+        },
+        t('editor.adoptRegion'),
+      );
     return [
       h(
         'div',
@@ -367,9 +388,37 @@ export class InspectorPanel {
               'li',
               { class: issue.severity === 'blocking' ? 'blocking' : '' },
               issueLabel(issue, draft, false),
+              ' ',
+              adopt(issue),
             ),
           ),
         ),
+      ),
+    ];
+  }
+
+  /** Revision: regions of the base version that still need checking on the new screenshot. */
+  private inheritedBlock(): Child[] {
+    const editor = this.editor;
+    const pending = editor.draft.components.filter((component) => editor.inheritedRegion(component));
+    if (pending.length === 0) return [];
+    return [
+      h(
+        'div',
+        { class: 'notice warning inherited' },
+        h('p', {}, t('editor.inheritedRegions', { count: pending.length })),
+        !editor.readOnly &&
+          h(
+            'button',
+            {
+              attrs: { type: 'button' },
+              onClick: () => {
+                (document.activeElement as HTMLElement | null)?.blur();
+                editor.adoptInheritedRegions();
+              },
+            },
+            t('editor.adoptAllRegions'),
+          ),
       ),
     ];
   }

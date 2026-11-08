@@ -300,6 +300,77 @@ describe('releaseSpecification', () => {
   });
 });
 
+describe('revision sessions', () => {
+  it('start from the base version with the same component ids and inherited regions', async () => {
+    const first = await submit();
+    const firstScreenshot = env.ctx.repos.screenshots.list({
+      projectId: first.projectId,
+      sessionId: first.sessionId,
+    })[0];
+    if (!firstScreenshot) throw new Error('screenshot missing');
+    describeAll(first.sessionId);
+    edit(
+      first.sessionId,
+      {
+        op: 'setRegion',
+        componentId: header,
+        screenshotId: firstScreenshot.id,
+        rect: { x: 0, y: 0, width: 1200, height: 100 },
+      },
+      { op: 'updateDraft', changeSummary: 'Initial', acceptance: ['Loads fast'], openQuestions: [] },
+    );
+    const v1 = release(first.sessionId);
+
+    const second = await submit(first.projectId, first.uiId);
+    const details = getSession(env.ctx, LOCAL_HUMAN, second.sessionId);
+    expect(details.session).toMatchObject({ intent: 'revise', baseVersionId: v1.uiVersion.id });
+    const draft = getDraft(env.ctx, LOCAL_HUMAN, second.sessionId);
+    expect(draft).toMatchObject({
+      revision: 0,
+      goal: 'Build the dashboard',
+      changeSummary: '',
+      acceptance: ['Loads fast'],
+      conflicts: [],
+    });
+    expect(draft.components.map((component) => [component.componentId, component.parentId])).toEqual([
+      [header, null],
+      [logo, header],
+    ]);
+    expect(draft.components[0]?.regions).toEqual([
+      { screenshotId: firstScreenshot.id, x: 0, y: 0, width: 1200, height: 100 },
+    ]);
+
+    edit(second.sessionId, { op: 'updateDraft', changeSummary: 'Taller header' });
+    // The inherited region blocks until it is moved onto the new screenshot.
+    const blocked = errorOf(() => release(second.sessionId, { conflictAcknowledged: false }));
+    expect(blocked.code).toBe('INCOMPLETE');
+    expect(blocked.details).toMatchObject({
+      blocking: [{ code: 'inherited_region', componentId: header, screenshotId: firstScreenshot.id }],
+    });
+
+    const newScreenshot = env.ctx.repos.screenshots.list({
+      projectId: first.projectId,
+      sessionId: second.sessionId,
+    })[0];
+    if (!newScreenshot) throw new Error('screenshot missing');
+    edit(
+      second.sessionId,
+      {
+        op: 'setRegion',
+        componentId: header,
+        screenshotId: newScreenshot.id,
+        rect: { x: 0, y: 0, width: 1200, height: 120 },
+      },
+      { op: 'setRegion', componentId: header, screenshotId: firstScreenshot.id, rect: null },
+    );
+    const before = count('component_revisions');
+    const v2 = release(second.sessionId);
+    expect(v2.uiVersion).toMatchObject({ versionNo: 2, predecessorVersionId: v1.uiVersion.id });
+    // Only the header changed (its region); the logo reuses its revision.
+    expect(count('component_revisions')).toBe(before + 1);
+  });
+});
+
 describe('reading released versions', () => {
   it('hands out nothing before the release', async () => {
     const { sessionId } = await submit();

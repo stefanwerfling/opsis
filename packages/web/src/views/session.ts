@@ -256,6 +256,7 @@ class EditorWorkspace {
   private readonly toolButtons = new Map<Tool, HTMLButtonElement>();
   private readonly unsubscribe: () => void;
   private shownIds = '';
+  private readonly requestedScreenshots = new Set<string>();
 
   constructor(
     sessionId: string,
@@ -341,6 +342,8 @@ class EditorWorkspace {
   /** Called with fresh session details; adds new screenshots without resetting the view. */
   setScreenshots(screenshots: readonly Screenshot[]): void {
     this.store.setContext({ screenshots });
+    this.editor.setSessionScreenshots(screenshots.map(({ id, width, height }) => ({ id, width, height })));
+    this.loadInheritedScreenshots();
     const ids = screenshots.map((screenshot) => screenshot.id).join(',');
     if (ids === this.shownIds) return;
     this.shownIds = ids;
@@ -364,6 +367,22 @@ class EditorWorkspace {
     const active = this.editor.activeScreenshot;
     const next = screenshots.find((screenshot) => screenshot.id === active?.id) ?? screenshots[0];
     if (next) this.showScreenshot(next);
+  }
+
+  /** Sizes of the base-version screenshots that inherited regions refer to (revisions). */
+  private loadInheritedScreenshots(): void {
+    for (const id of this.editor.inheritedScreenshotIds()) {
+      if (this.requestedScreenshots.has(id)) continue;
+      this.requestedScreenshots.add(id);
+      api
+        .getScreenshot(id)
+        .then(({ width, height }) => {
+          this.editor.addForeignScreenshot({ id, width, height });
+        })
+        .catch((error: unknown) => {
+          this.message(error);
+        });
+    }
   }
 
   openRelease(details: SessionDetails): void {

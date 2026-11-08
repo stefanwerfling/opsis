@@ -240,6 +240,7 @@ export const en = {
   'issue.open_conflict': 'Contradiction still open',
   'issue.dangling_relation': 'A relation points to a missing component.',
   'issue.unnamed_component': 'Component without a name',
+  'issue.inherited_region': 'Region from the base version not yet checked on the new screenshot',
   'issue.missing_description': 'No description',
   'issue.missing_acceptance': 'No acceptance criterion',
   'issue.unconfirmed_auto_detected': 'Auto-detected value not confirmed',
@@ -247,6 +248,10 @@ export const en = {
   'issue.region_outside_parent': 'Region lies outside the parent region (hint)',
   'issue.disabled_on_visual_area': 'Disabled state described for a visual area (hint)',
   'editor.hints': 'Open points',
+  'editor.adoptRegion': 'Use on this screenshot',
+  'editor.inheritedRegions':
+    '{count} components still have their region from the base version. Check the dashed proposals on this screenshot and adopt them (adjust afterwards if needed).',
+  'editor.adoptAllRegions': 'Adopt all proposals',
   'editor.conflicts': 'Contradictions',
   'editor.noConflicts': 'No contradictions recorded.',
   'editor.conflictDescription': 'Describe the contradiction',

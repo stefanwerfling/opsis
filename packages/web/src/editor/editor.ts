@@ -3,12 +3,15 @@ import {
   componentDepths,
   findComponent,
   newId,
+  regionOn,
   subtreeIds,
+  transferRect,
   type ComponentKind,
   type Draft,
   type DraftComponent,
   type DraftOperation,
   type Rect,
+  type Region,
 } from '@opsis/core/browser';
 import { t } from '../i18n/i18n.js';
 import type { DraftStore } from './store.js';
@@ -32,6 +35,10 @@ export class Editor {
   private selected = new Set<string>();
   private toolValue: Tool = 'select';
   private screenshot: EditorScreenshot | null = null;
+  /** Screenshots of this session; regions on others are inherited from the base version. */
+  private sessionScreenshots: readonly EditorScreenshot[] = [];
+  /** Sizes of base-version screenshots that inherited regions refer to. */
+  private readonly foreignScreenshots = new Map<string, EditorScreenshot>();
   private readonly listeners = new Set<Listener>();
   /** Collapsed tree nodes (view state only). */
   readonly collapsed = new Set<string>();
@@ -91,6 +98,79 @@ export class Editor {
   setScreenshot(screenshot: EditorScreenshot): void {
     this.screenshot = screenshot;
     this.changed();
+  }
+
+  setSessionScreenshots(screenshots: readonly EditorScreenshot[]): void {
+    this.sessionScreenshots = screenshots;
+    this.changed();
+  }
+
+  get sessionScreenshotIds(): string[] {
+    return this.sessionScreenshots.map((screenshot) => screenshot.id);
+  }
+
+  addForeignScreenshot(screenshot: EditorScreenshot): void {
+    this.foreignScreenshots.set(screenshot.id, screenshot);
+    this.changed();
+  }
+
+  /** Screenshot ids of all inherited regions (to load their sizes). */
+  inheritedScreenshotIds(): string[] {
+    const own = new Set(this.sessionScreenshotIds);
+    const ids = this.draft.components.flatMap((component) =>
+      component.regions.map((region) => region.screenshotId).filter((id) => !own.has(id)),
+    );
+    return [...new Set(ids)];
+  }
+
+  /** Region of the base version not yet checked against a screenshot of this session. */
+  inheritedRegion(component: DraftComponent): Region | undefined {
+    const own = new Set(this.sessionScreenshotIds);
+    return component.regions.find((region) => !own.has(region.screenshotId));
+  }
+
+  /** Where the inherited region would land on the active screenshot (a proposal). */
+  proposedRegion(component: DraftComponent): Rect | undefined {
+    const inherited = this.inheritedRegion(component);
+    const target = this.screenshot;
+    if (!inherited || target === null) return undefined;
+    const from = this.foreignScreenshots.get(inherited.screenshotId) ?? target;
+    return transferRect(inherited, from, target);
+  }
+
+  /**
+   * Accepts the proposals: each component gets its inherited region on the active
+   * screenshot (unless it already has one there) and drops the base-version regions.
+   */
+  adoptInheritedRegions(componentIds?: readonly string[]): void {
+    const target = this.screenshot;
+    if (target === null) return;
+    const wanted = componentIds === undefined ? undefined : new Set(componentIds);
+    const own = new Set(this.sessionScreenshotIds);
+    const operations: DraftOperation[] = [];
+    for (const component of this.draft.components) {
+      if (wanted && !wanted.has(component.componentId)) continue;
+      const proposal = this.proposedRegion(component);
+      if (!proposal) continue;
+      if (!regionOn(component, target.id)) {
+        operations.push({
+          op: 'setRegion',
+          componentId: component.componentId,
+          screenshotId: target.id,
+          rect: proposal,
+        });
+      }
+      for (const region of component.regions) {
+        if (own.has(region.screenshotId)) continue;
+        operations.push({
+          op: 'setRegion',
+          componentId: component.componentId,
+          screenshotId: region.screenshotId,
+          rect: null,
+        });
+      }
+    }
+    if (operations.length > 0) this.apply(...operations);
   }
 
   setTool(tool: Tool): void {

@@ -8,6 +8,7 @@ export * from './domain/geometry.js';
 export * from './domain/ids.js';
 export * from './domain/project.js';
 export * from './domain/screenshot.js';
+export * from './domain/revision.js';
 export * from './domain/session.js';
 export * from './domain/specification/index.js';
 export * from './domain/ui-view.js';

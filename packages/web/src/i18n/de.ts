@@ -246,6 +246,7 @@ export const de: Messages = {
   'issue.open_conflict': 'Widerspruch noch offen',
   'issue.dangling_relation': 'Eine Beziehung verweist auf eine fehlende Komponente.',
   'issue.unnamed_component': 'Komponente ohne Namen',
+  'issue.inherited_region': 'Region aus der Basisversion noch nicht am neuen Screenshot geprüft',
   'issue.missing_description': 'Keine Beschreibung',
   'issue.missing_acceptance': 'Kein Akzeptanzkriterium',
   'issue.unconfirmed_auto_detected': 'Automatisch erkannter Wert nicht bestätigt',
@@ -253,6 +254,10 @@ export const de: Messages = {
   'issue.region_outside_parent': 'Region liegt außerhalb der übergeordneten Region (Hinweis)',
   'issue.disabled_on_visual_area': 'Disabled-Zustand bei einem visuellen Bereich beschrieben (Hinweis)',
   'editor.hints': 'Offene Punkte',
+  'editor.adoptRegion': 'Auf diesem Screenshot übernehmen',
+  'editor.inheritedRegions':
+    '{count} Komponenten haben noch ihre Region aus der Basisversion. Prüfe die gestrichelten Vorschläge auf diesem Screenshot und übernimm sie (danach bei Bedarf anpassen).',
+  'editor.adoptAllRegions': 'Alle Vorschläge übernehmen',
   'editor.conflicts': 'Widersprüche',
   'editor.noConflicts': 'Keine Widersprüche erfasst.',
   'editor.conflictDescription': 'Widerspruch beschreiben',

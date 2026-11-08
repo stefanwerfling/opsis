@@ -82,7 +82,11 @@ export const releaseSpecification = (
       throw new OpsisError('NOT_FOUND', `Session "${sessionId}" is incomplete`);
 
     // 2. Completeness: nothing blocking, every warning acknowledged.
-    const report = assessCompleteness(draft, { assignment: session.assignment });
+    const screenshots = ctx.repos.screenshots.list({ projectId: session.projectId, sessionId });
+    const report = assessCompleteness(draft, {
+      assignment: session.assignment,
+      screenshotIds: screenshots.map((screenshot) => screenshot.id),
+    });
     const unacknowledged = unacknowledgedWarnings(report, input.acknowledgedWarnings);
     if (report.blocking.length > 0 || unacknowledged.length > 0) {
       throw new OpsisError('INCOMPLETE', 'The specification cannot be released yet', {
@@ -102,7 +106,6 @@ export const releaseSpecification = (
       });
     }
 
-    const screenshots = ctx.repos.screenshots.list({ projectId: session.projectId, sessionId });
     const warningIds = new Set(report.warnings.map((warning) => warning.id));
     const snapshot = buildSnapshot({
       project,

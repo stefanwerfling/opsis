@@ -20,6 +20,7 @@ export const BLOCKING_CODES = [
   'open_conflict',
   'dangling_relation',
   'unnamed_component',
+  'inherited_region',
 ] as const;
 
 export const WARNING_CODES = [
@@ -67,6 +68,11 @@ export interface CompletenessReport {
 
 export interface CompletenessContext {
   readonly assignment: 'confirmed' | 'needs_confirmation';
+  /**
+   * Screenshots of the session. A region on any other screenshot was inherited from the
+   * base version of a revision and has not been checked against the new screenshot yet.
+   */
+  readonly screenshotIds?: readonly string[];
 }
 
 export const ALL_SPEC_FIELDS: readonly string[] = SPEC_GROUP_NAMES.flatMap((group) =>
@@ -119,12 +125,23 @@ export const assessCompleteness = (draft: Draft, context: CompletenessContext): 
   }
 
   // ── Per component ─────────────────────────────────────────────────────────
+  const sessionScreenshots = context.screenshotIds ? new Set(context.screenshotIds) : undefined;
   const unknownFields: UnknownFields[] = [];
   let specifiedFields = 0;
   for (const component of draft.components) {
     const componentId = component.componentId;
     if (component.name.trim() === '') {
       block({ code: 'unnamed_component', componentId }, issueId('unnamed_component', componentId));
+    }
+    if (sessionScreenshots) {
+      for (const region of component.regions) {
+        if (!sessionScreenshots.has(region.screenshotId)) {
+          block(
+            { code: 'inherited_region', componentId, screenshotId: region.screenshotId },
+            issueId('inherited_region', componentId, region.screenshotId),
+          );
+        }
+      }
     }
     if (specValueAt(component, 'general', 'description') === undefined) {
       warn({ code: 'missing_description', componentId }, issueId('missing_description', componentId));

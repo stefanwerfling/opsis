@@ -71,6 +71,7 @@ export class ReleaseDialog {
   private report(): CompletenessReport {
     return assessCompleteness(this.context.editor.draft, {
       assignment: this.session?.assignment ?? 'needs_confirmation',
+      screenshotIds: this.context.editor.sessionScreenshotIds,
     });
   }
 

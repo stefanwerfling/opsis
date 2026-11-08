@@ -450,10 +450,40 @@ export class EditorCanvas implements CanvasInteraction {
       }
     }
 
+    this.drawInherited(context, toStage, depths);
     this.drawRelations(context, centers);
     this.drawHandles(context, toStage);
     this.drawGesture(context, toStage);
     this.drawRelateGesture(context, viewport, centers);
+  }
+
+  /** Revision: dashed proposals for regions inherited from the base version (not hit-testable). */
+  private drawInherited(
+    context: CanvasRenderingContext2D,
+    toStage: (rect: Rect) => Rect,
+    depths: Map<string, number>,
+  ): void {
+    const editor = this.editor;
+    const screenshot = editor.activeScreenshot;
+    if (screenshot === null) return;
+    context.font = 'italic 12px system-ui, sans-serif';
+    for (const component of editor.draft.components) {
+      if (component.hidden || regionOn(component, screenshot.id)) continue;
+      const proposal = editor.proposedRegion(component);
+      if (!proposal) continue;
+      const stage = toStage(proposal);
+      const color = depthColor(depths.get(component.componentId) ?? 0);
+      context.strokeStyle = color;
+      context.lineWidth = editor.isSelected(component.componentId) ? 2.5 : 1.5;
+      context.setLineDash([6, 4]);
+      context.strokeRect(stage.x + 0.5, stage.y + 0.5, stage.width - 1, stage.height - 1);
+      context.setLineDash([]);
+      if (stage.width > 24 && stage.height > 14) {
+        context.fillStyle = color;
+        context.fillText(`${component.name} ?`, stage.x + 4, stage.y + 3);
+      }
+    }
+    context.font = '12px system-ui, sans-serif';
   }
 
   private drawRelations(context: CanvasRenderingContext2D, centers: Map<string, Point>): void {

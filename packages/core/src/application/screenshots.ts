@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { actorRef, type Actor } from '../domain/actor.js';
 import { OpsisError } from '../domain/errors.js';
 import { newId } from '../domain/ids.js';
+import { draftFromSnapshot } from '../domain/revision.js';
 import {
   IMAGE_LIMITS,
   SCREENSHOT_SOURCES,
@@ -17,6 +18,7 @@ import type { InspectedImage } from './ports.js';
 import { getProject } from './projects.js';
 import { findSession, recordStatusEvent, transitionSession } from './sessions.js';
 import { insertUiView } from './ui-views.js';
+import { storedSnapshot } from './versions.js';
 
 export const SubmitScreenshotInputSchema = z
   .strictObject({
@@ -210,13 +212,24 @@ export const submitScreenshot = async (
       };
       ctx.repos.sessions.insert(created);
       ctx.repos.sessions.createEmptyDraft(created.id, uow.now);
+      if (created.baseVersionId !== null) {
+        // Revision: start from the base version with the same component ids (05 §3).
+        ctx.repos.drafts.save(
+          draftFromSnapshot(created.id, storedSnapshot(ctx, created.baseVersionId), uow.now),
+        );
+      }
       recordStatusEvent(ctx, actor, uow, created.id, null, 'created', null);
       uow.audit({
         projectId: data.projectId,
         entityType: 'session',
         entityId: created.id,
         action: 'create',
-        data: { uiId: view.uiId, assignment: created.assignment, intent: created.intent },
+        data: {
+          uiId: view.uiId,
+          assignment: created.assignment,
+          intent: created.intent,
+          baseVersionId: created.baseVersionId,
+        },
       });
       session = transitionSession(ctx, actor, uow, created, 'uploading');
     }

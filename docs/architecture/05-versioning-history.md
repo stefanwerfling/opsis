@@ -57,6 +57,15 @@ Eine Session mit `intent = revise` (Standard, wenn die UiView bereits eine Versi
 Screenshot. Der Editor zeigt sie über dem neuen Screenshot an, und der Mensch passt sie an
 oder bestätigt sie. Bestätigte Regionen werden auf den neuen Screenshot umgehängt.
 
+Umsetzung (Phase 4, `core/domain/revision.ts`): Übernommen werden Komponenten (Baum,
+Name, Typ, Spezifikation, Regionen), Relationen, Ziel, globale Akzeptanzkriterien und
+offene Fragen. Nicht übernommen werden die Änderungszusammenfassung und die (aufgelösten)
+Widersprüche; diese bleiben in der Basisversion nachvollziehbar. Eine Region auf einem
+Screenshot außerhalb der Session blockiert die Freigabe (`inherited_region`). Der Editor
+zeigt dazu gestrichelt einen Vorschlag auf dem aktiven Screenshot, skaliert über das
+Breitenverhältnis und auf das Bild begrenzt. „Übernehmen“ setzt die Region dort und
+entfernt die geerbte, einzeln oder für alle auf einmal.
+
 Der Prompt einer Überarbeitung unterscheidet dann durch einen Vergleich mit der Basisversion:
 
 - **Unverändert** (Komponente und Inhaltshash identisch),

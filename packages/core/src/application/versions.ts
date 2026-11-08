@@ -61,6 +61,13 @@ const loadVersion = (ctx: AppContext, uiVersion: UiVersion): ReleasedVersion => 
   };
 };
 
+/** Snapshot of a released version, without access check (callers checked the project). */
+export const storedSnapshot = (ctx: AppContext, uiVersionId: string): SpecSnapshot => {
+  const version = ctx.repos.versions.findUiVersion(uiVersionId);
+  if (!version) throw new OpsisError('NOT_FOUND', `UI version "${uiVersionId}" not found`);
+  return loadVersion(ctx, version).snapshot;
+};
+
 const findVersion = (ctx: AppContext, actor: Actor, versionId: string): UiVersion => {
   const version = ctx.repos.versions.findUiVersion(versionId);
   if (!version || !ctx.access.canAccessProject(actor, version.projectId)) {
