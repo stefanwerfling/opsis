@@ -60,9 +60,20 @@ const ProposedComponentSchema = z.strictObject({
   spec: ProposedSpecSchema.optional(),
 });
 
-export const ProposeComponentsInputSchema = z.strictObject({
-  components: z.array(ProposedComponentSchema).min(1).max(MAX_PROPOSED_COMPONENTS),
+/** More detail for an existing component: only empty or still unconfirmed fields. */
+const ProposedUpdateSchema = z.strictObject({
+  componentId: z.string().min(1).max(64),
+  spec: ProposedSpecSchema,
 });
+
+export const ProposeComponentsInputSchema = z
+  .strictObject({
+    components: z.array(ProposedComponentSchema).max(MAX_PROPOSED_COMPONENTS).default([]),
+    updates: z.array(ProposedUpdateSchema).max(DRAFT_LIMITS.maxComponents).default([]),
+  })
+  .refine((data) => data.components.length + data.updates.length > 0, {
+    message: 'Give at least one component or update',
+  });
 export type ProposeComponentsInput = z.input<typeof ProposeComponentsInputSchema>;
 
 export interface ProposeComponentsResult {
@@ -70,6 +81,8 @@ export interface ProposeComponentsResult {
   /** Agent reference → created component id, in input order. */
   readonly created: readonly { readonly ref: string; readonly componentId: string }[];
   readonly specValues: number;
+  /** Components that received values through `updates`. */
+  readonly updated: number;
 }
 
 export const proposeComponents = (
@@ -156,6 +169,38 @@ export const proposeComponents = (
       }
     });
 
+    // Updates never touch what the human confirmed or what was inherited from a released
+    // version: only empty fields and fields that are still unconfirmed proposals.
+    const updatedIds = new Set<string>();
+    data.updates.forEach((update, index) => {
+      const at = (message: string) =>
+        new OpsisError('VALIDATION', `updates[${String(index)}]: ${message}`, {
+          index,
+          componentId: update.componentId,
+        });
+      const component = current.components.find((candidate) => candidate.componentId === update.componentId);
+      if (!component) throw at(`unknown component "${update.componentId}"`);
+      for (const group of SPEC_GROUP_NAMES) {
+        const existing = component.spec[group] as Record<string, { origin: string } | undefined> | undefined;
+        for (const [field, value] of Object.entries(update.spec[group] ?? {})) {
+          if (value === undefined) continue;
+          const origin = existing?.[field]?.origin;
+          if (origin !== undefined && origin !== 'auto_detected') {
+            throw at(`${group}.${field} is confirmed ("${origin}") and stays as it is`);
+          }
+          specValues += 1;
+          updatedIds.add(component.componentId);
+          operations.push({
+            op: 'setSpecValue',
+            componentId: component.componentId,
+            group,
+            field,
+            value: { value, origin: 'auto_detected' },
+          });
+        }
+      }
+    });
+
     const screenshots = ctx.repos.screenshots
       .list({ projectId: session.projectId, sessionId: session.id })
       .map((screenshot) => ({ id: screenshot.id, width: screenshot.width, height: screenshot.height }));
@@ -170,7 +215,7 @@ export const proposeComponents = (
       entityType: 'draft',
       entityId: session.id,
       action: 'propose',
-      data: { revision: changed.revision, components: ids.size, specValues },
+      data: { revision: changed.revision, components: ids.size, updated: updatedIds.size, specValues },
     });
     uow.emit({
       type: 'DraftChanged',
@@ -182,6 +227,7 @@ export const proposeComponents = (
       draft: changed,
       created: [...ids].map(([ref, componentId]) => ({ ref, componentId })),
       specValues,
+      updated: updatedIds.size,
     };
   });
 };

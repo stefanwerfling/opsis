@@ -72,7 +72,12 @@ describe('proposeComponents', () => {
 
     expect(env.events.filter((event) => event.type === 'DraftChanged')).toHaveLength(1);
     const audit = env.db.get("SELECT data FROM audit_log WHERE action = 'propose'");
-    expect(JSON.parse(String(audit?.['data']))).toEqual({ revision: 1, components: 2, specValues: 2 });
+    expect(JSON.parse(String(audit?.['data']))).toEqual({
+      revision: 1,
+      components: 2,
+      updated: 0,
+      specValues: 2,
+    });
   });
 
   it('adds to earlier proposals and may attach to existing components', async () => {
@@ -90,6 +95,50 @@ describe('proposeComponents', () => {
       ['Page', null],
       ['Footer', pageId],
     ]);
+  });
+
+  it('refines existing components, but only empty or unconfirmed fields', async () => {
+    const { sessionId } = await submitted();
+    const { created } = proposeComponents(env.ctx, agent, sessionId, {
+      components: [{ ref: 'btn', name: 'Button', spec: { general: { description: 'Red' } } }],
+    });
+    const id = created[0]?.componentId ?? '';
+    const refined = proposeComponents(env.ctx, agent, sessionId, {
+      updates: [
+        {
+          componentId: id,
+          spec: { general: { description: 'Red, rounded' }, interaction: { hover: 'Lighter red' } },
+        },
+      ],
+    });
+    expect([refined.created.length, refined.updated, refined.specValues]).toEqual([0, 1, 2]);
+    const component = getDraft(env.ctx, LOCAL_HUMAN, sessionId).components[0];
+    expect(component?.spec.general?.description).toEqual({ value: 'Red, rounded', origin: 'auto_detected' });
+    expect(component?.spec.interaction?.hover).toEqual({ value: 'Lighter red', origin: 'auto_detected' });
+
+    // A value the human confirmed (here: inherited/confirmed before the review) stays untouched.
+    const draft = getDraft(env.ctx, LOCAL_HUMAN, sessionId);
+    env.ctx.repos.drafts.save({
+      ...draft,
+      components: draft.components.map((entry) => ({
+        ...entry,
+        spec: { ...entry.spec, general: { description: { value: 'Mine', origin: 'user' } } },
+      })),
+    });
+    const error = errorOf(() =>
+      proposeComponents(env.ctx, agent, sessionId, {
+        updates: [{ componentId: id, spec: { general: { description: 'Overwrite' } } }],
+      }),
+    );
+    expect(error.code).toBe('VALIDATION');
+    expect(error.message).toContain('general.description is confirmed');
+    expect(
+      errorOf(() =>
+        proposeComponents(env.ctx, agent, sessionId, {
+          updates: [{ componentId: 'cmp_unknown', spec: { general: { purpose: 'x' } } }],
+        }),
+      ).code,
+    ).toBe('VALIDATION');
   });
 
   it('validates the proposal as a whole and changes nothing on error', async () => {

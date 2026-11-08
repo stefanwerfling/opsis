@@ -277,6 +277,28 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     registerTool(target, name, definition, run, p.onInternalError);
   };
 
+  /** Spec text per group and field; the same shape for new and existing components. */
+  const ProposalSpec = z
+    .object(
+      Object.fromEntries(
+        SPEC_GROUP_NAMES.map((group) => [
+          group,
+          z
+            .object(
+              Object.fromEntries(
+                SPEC_GROUPS[group].map((field) => [field, z.string().min(1).max(10_000).optional()]),
+              ),
+            )
+            .optional(),
+        ]),
+      ),
+    )
+    .describe(
+      'Specification text per group and field, e.g. {"general":{"description":"…","purpose":"…"},' +
+        '"interaction":{"click":"…"}}. Groups: ' +
+        SPEC_GROUP_NAMES.map((group) => `${group} (${SPEC_GROUPS[group].join(', ')})`).join('; '),
+    );
+
   // ── Projects ──
   register(
     server,
@@ -840,7 +862,8 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
         'width/thumbnail_width). Every specification value is stored as "auto_detected" and must be confirmed ' +
         'by the human. Describe only what is visible; leave unknown fields out instead of guessing. ' +
         `Adds components (max. ${String(MAX_PROPOSED_COMPONENTS)} per call; parents before children); call ` +
-        'again to add more.',
+        'again to add more. With updates, add detail to existing components (component_id from ' +
+        'opsis_get_draft): only empty or still unconfirmed fields can be set, confirmed ones stay.',
       input: z.object({
         session_id: SessionId,
         components: z
@@ -866,34 +889,21 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
                 })
                 .optional()
                 .describe('Bounding box in original screenshot pixels'),
-              spec: z
-                .object(
-                  Object.fromEntries(
-                    SPEC_GROUP_NAMES.map((group) => [
-                      group,
-                      z
-                        .object(
-                          Object.fromEntries(
-                            SPEC_GROUPS[group].map((field) => [
-                              field,
-                              z.string().min(1).max(10_000).optional(),
-                            ]),
-                          ),
-                        )
-                        .optional(),
-                    ]),
-                  ),
-                )
-                .optional()
-                .describe(
-                  'Specification text per group and field, e.g. {"general":{"description":"…","purpose":"…"},' +
-                    '"interaction":{"click":"…"}}. Groups: ' +
-                    SPEC_GROUP_NAMES.map((group) => `${group} (${SPEC_GROUPS[group].join(', ')})`).join('; '),
-                ),
+              spec: ProposalSpec.optional(),
             }),
           )
-          .min(1)
-          .max(MAX_PROPOSED_COMPONENTS),
+          .max(MAX_PROPOSED_COMPONENTS)
+          .optional(),
+        updates: z
+          .array(
+            z.object({
+              component_id: Id.describe('Existing component (cmp_…)'),
+              spec: ProposalSpec,
+            }),
+          )
+          .max(2000)
+          .optional()
+          .describe('More detail for existing components; same spec shape as for new ones'),
       }),
       output: z.object({
         session_id: z.string(),
@@ -901,14 +911,16 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
         created: z.array(z.object({ ref: z.string(), component_id: z.string() })),
         component_count: z.number(),
         spec_values: z.number(),
+        updated: z.number(),
         editor_url: z.string(),
       }),
       readOnly: false,
       idempotent: false,
     },
-    ({ session_id, components }) => {
+    ({ session_id, components, updates }) => {
       const result = proposeComponents(ctx, actor, session_id, {
-        components: components.map((component) => ({
+        updates: (updates ?? []).map((update) => ({ componentId: update.component_id, spec: update.spec })),
+        components: (components ?? []).map((component) => ({
           ref: component.ref,
           ...(component.parent_ref === undefined ? {} : { parentRef: component.parent_ref }),
           ...(component.parent_id === undefined ? {} : { parentId: component.parent_id }),
@@ -935,10 +947,12 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
           created: result.created.map((entry) => ({ ref: entry.ref, component_id: entry.componentId })),
           component_count: result.draft.components.length,
           spec_values: result.specValues,
+          updated: result.updated,
           editor_url: editorUrl(p, session_id),
         },
         text:
-          `Proposed ${String(result.created.length)} components with ${String(result.specValues)} values ` +
+          `Proposed ${String(result.created.length)} new and refined ${String(result.updated)} components with ` +
+          `${String(result.specValues)} values ` +
           `(auto_detected). The human reviews them at ${editorUrl(p, session_id)}.`,
       };
     },
