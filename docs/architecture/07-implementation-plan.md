@@ -99,6 +99,28 @@ Session steht auf `delivered`. Standardbrowser ist das installierte Chrome
 (`OPSIS_E2E_CHANNEL`, leer = Playwright-Chromium). Der Test gehört nicht zu `npm run check`,
 weil er einen Browser braucht.
 
+Umsetzung (Phase 6, Schritt 2): `e2e/perf.spec.ts` misst einen Screenshot mit 1440×8000 px
+und 1000 Komponenten mit Markierungen (10 Abschnitte × 9 Gruppen × 10 Elemente). Die
+Browserwerte werden in der Seite gemessen, vom Eingabeereignis bis zum nächsten gemalten
+Frame, weil Playwright-Locator die Zeiten sonst dominieren. Die Ergebnisse landen in
+`test-results/perf.json`. Referenzwerte (Linux-Desktop, Chrome):
+
+| Messung                                 | vorher    | nachher    |
+| --------------------------------------- | --------- | ---------- |
+| Upload 8000 px (Server)                 | 65 ms     | 65 ms      |
+| 1000 Komponenten anlegen (2 Batches)    | 0,2–0,4 s | 0,2–0,4 s  |
+| Freigabe mit 2000 bestätigten Warnungen | 0,4–0,6 s | 0,4 s      |
+| Editor laden bis vollständiger Baum     | 1,0 s     | 0,55–0,8 s |
+| Komponente im Baum auswählen            | 200 ms    | 70–90 ms   |
+| Verschieben (Wheel) / Hover über Canvas | 1 Frame   | 1 Frame    |
+
+Behoben: Beim Auswählen wurde der ganze Baum neu aufgebaut. Jetzt werden nur noch die
+Auswahlklassen aktualisiert, solange Entwurf, Einklappzustand, Umbenennen und Screenshot
+gleich bleiben. Der Neuaufbau nutzt eine Kinderliste statt einer Suche pro Zeile (vorher
+O(n²)). Die Vollständigkeitsprüfung schlägt Komponenten über eine Map nach. Der Viewer liest
+die Hintergrundfarbe nicht mehr bei jedem Frame aus dem CSS. Eine Virtualisierung der
+Overlays ist bei 1000 Markierungen nicht nötig, weil ein Canvas-Frame unter 17 ms bleibt.
+
 ## Teststrategie (Kurzfassung)
 
 | Ebene       | Werkzeug                                        | Schwerpunkt                                                                          |

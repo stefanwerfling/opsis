@@ -1,4 +1,4 @@
-import { childrenOf, depthColor, subtreeIds, type DraftComponent } from '@opsis/core/browser';
+import { childrenOf, depthColor, subtreeIds, type Draft, type DraftComponent } from '@opsis/core/browser';
 import { h, replaceChildren } from '../dom.js';
 import { t } from '../i18n/i18n.js';
 import type { Editor } from './editor.js';
@@ -19,6 +19,8 @@ export class TreePanel {
   private renaming: { id: string; value: string } | null = null;
   private confirmDelete = false;
   private dragId: string | null = null;
+  /** What the rendered rows depend on besides the selection (fast path for selecting). */
+  private structure: { draft: Draft; key: string } | null = null;
   private readonly unsubscribe: () => void;
 
   constructor(private readonly editor: Editor) {
@@ -53,15 +55,32 @@ export class TreePanel {
     this.renderToolbar();
     const scroll = this.list.scrollTop;
     const draft = this.editor.draft;
+    const key = [
+      [...this.editor.collapsed].join(','),
+      this.renaming?.id ?? '',
+      this.editor.activeScreenshot?.id ?? '',
+      String(this.editor.readOnly),
+    ].join('|');
+    if (this.structure?.draft === draft && this.structure.key === key) {
+      // Only the selection changed: update the existing rows instead of rebuilding them.
+      for (const row of this.list.querySelectorAll<HTMLElement>('[role="treeitem"]')) {
+        const selected = this.editor.isSelected(row.dataset['id'] ?? '');
+        row.classList.toggle('selected', selected);
+        row.setAttribute('aria-selected', String(selected));
+      }
+      return;
+    }
+    this.structure = { draft, key };
     if (draft.components.length === 0) {
       replaceChildren(this.list, h('li', { class: 'muted tree-empty' }, t('editor.treeEmpty')));
       return;
     }
     const depths = this.editor.depths();
+    const children = childrenMap(draft);
     const rows: HTMLElement[] = [];
     const visit = (parentId: string | null): void => {
-      for (const component of childrenOf(draft, parentId)) {
-        rows.push(this.row(component, depths.get(component.componentId) ?? 0));
+      for (const component of children.get(parentId) ?? []) {
+        rows.push(this.row(component, depths.get(component.componentId) ?? 0, children));
         if (!this.editor.collapsed.has(component.componentId)) visit(component.componentId);
       }
     };
@@ -135,10 +154,14 @@ export class TreePanel {
     );
   }
 
-  private row(component: DraftComponent, depth: number): HTMLElement {
+  private row(
+    component: DraftComponent,
+    depth: number,
+    children: ReadonlyMap<string | null, DraftComponent[]>,
+  ): HTMLElement {
     const editor = this.editor;
     const id = component.componentId;
-    const hasChildren = childrenOf(editor.draft, id).length > 0;
+    const hasChildren = (children.get(id)?.length ?? 0) > 0;
     const collapsed = editor.collapsed.has(id);
     const selected = editor.isSelected(id);
     const screenshot = editor.activeScreenshot;
@@ -374,3 +397,15 @@ export class TreePanel {
     }
   }
 }
+
+/** Children per parent (null = roots), ordered – one pass instead of a search per row. */
+const childrenMap = (draft: Draft): Map<string | null, DraftComponent[]> => {
+  const map = new Map<string | null, DraftComponent[]>();
+  for (const component of draft.components) {
+    const list = map.get(component.parentId);
+    if (list) list.push(component);
+    else map.set(component.parentId, [component]);
+  }
+  for (const list of map.values()) list.sort((a, b) => a.order - b.order);
+  return map;
+};

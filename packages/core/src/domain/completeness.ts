@@ -10,7 +10,7 @@
  * hints: whether something really is a contradiction is decided by the human, who can
  * record it as a conflict. Nothing here invents a requirement.
  */
-import { findComponent, regionOn, type Draft, type DraftComponent, type SpecValue } from './draft.js';
+import { regionOn, type Draft, type DraftComponent, type SpecValue } from './draft.js';
 import type { Rect } from './geometry.js';
 import { SPEC_GROUP_NAMES, SPEC_GROUPS, type SpecGroup } from './vocabulary.js';
 
@@ -115,8 +115,9 @@ export const assessCompleteness = (draft: Draft, context: CompletenessContext): 
       block({ code: 'open_conflict', conflictId: conflict.id }, issueId('open_conflict', conflict.id));
     }
   }
+  const byId = new Map(draft.components.map((component) => [component.componentId, component]));
   for (const relation of draft.relations) {
-    if (!findComponent(draft, relation.fromComponentId) || !findComponent(draft, relation.toComponentId)) {
+    if (!byId.has(relation.fromComponentId) || !byId.has(relation.toComponentId)) {
       block(
         { code: 'dangling_relation', relationId: relation.id },
         issueId('dangling_relation', relation.id),
@@ -171,7 +172,7 @@ export const assessCompleteness = (draft: Draft, context: CompletenessContext): 
     if (missing.length > 0) unknownFields.push({ componentId, fields: missing });
 
     // Hint: a child region that leaves its parent's region on the same screenshot.
-    const parent = component.parentId === null ? undefined : findComponent(draft, component.parentId);
+    const parent = component.parentId === null ? undefined : byId.get(component.parentId);
     if (parent) {
       for (const region of component.regions) {
         const parentRegion = regionOn(parent, region.screenshotId);

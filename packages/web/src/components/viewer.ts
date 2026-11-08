@@ -62,6 +62,8 @@ export class ScreenshotViewer {
   private viewport: Viewport = { scale: 1, x: 0, y: 0 };
   private stageSize: Size = { width: 0, height: 0 };
   private image: HTMLImageElement | null = null;
+  /** Cached stage colour: reading CSS on every frame forces a style recalculation. */
+  private background: string | null = null;
   private source: ScreenshotSource | null = null;
   /** The user has zoomed or panned – resizing then keeps the view instead of re-fitting. */
   private touched = false;
@@ -119,6 +121,14 @@ export class ScreenshotViewer {
       this.resize();
     });
     this.resizeObserver.observe(this.canvas);
+    matchMedia('(prefers-color-scheme: dark)').addEventListener(
+      'change',
+      () => {
+        this.background = null;
+        this.requestDraw();
+      },
+      { signal: this.abort.signal },
+    );
     this.bindInput();
   }
 
@@ -401,8 +411,9 @@ export class ScreenshotViewer {
     const context = this.context;
     const ratio = window.devicePixelRatio;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.fillStyle =
+    this.background ??=
       getComputedStyle(this.canvas).getPropertyValue('--viewer-background').trim() || '#808080';
+    context.fillStyle = this.background;
     context.fillRect(0, 0, this.canvas.width, this.canvas.height);
     if (this.image === null) return;
 
