@@ -30,6 +30,22 @@ ReleaseSpecification(sessionId, actor=human, acknowledgedWarnings, changeDescrip
  10. audit_log; COMMIT; danach EventBus: SessionStatusChanged, UiVersionCreated
 ```
 
+Umsetzung (Phase 3, `core/application/release.ts`):
+
+- Abgelehnt wird mit `INCOMPLETE` (HTTP 422); die Details enthalten `blocking` und
+  `unacknowledgedWarnings`. Nur Bestätigungen, die zu einer tatsächlichen Warnung gehören,
+  werden gespeichert.
+- Der Snapshot enthält keine Versions-IDs, Nummern oder Zeitstempel der Freigabe. Diese
+  Referenzen bekommen Prompt und Spezifikations-JSON getrennt. Die Spezifikation
+  (JSON/Markdown) wird jederzeit deterministisch aus dem gespeicherten Snapshot erzeugt; der
+  Prompt ist als `PromptVersion` gespeichert und wird unverändert ausgeliefert.
+- **Wiedereröffnen** (`ready → in_progress`, nur vor `delivered`) setzt
+  `baseVersionId` auf die eigene freigegebene Version. Die nächste Freigabe erzeugt
+  V(n+1) mit dieser Version als Vorgänger; die frühere Version bleibt unverändert.
+- Den Abruf des Prompts durch einen **Agenten** (über Session oder Version) wertet OPSIS als
+  Auslieferung (`ready → delivered`, E3). Liest der Mensch den Prompt in der Web-UI, ändert
+  das den Status nicht.
+
 `canonicalJson` sortiert Schlüssel und normalisiert Zahlen. Gleicher Inhalt ergibt
 dadurch gleichen Hash und so funktioniert die Deduplizierung der ComponentRevisions.
 

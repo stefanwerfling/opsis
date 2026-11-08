@@ -6,6 +6,7 @@ import { AccessPolicy, EventBus, type AppContext, type Clock, type DomainEvent }
 import { Database } from '../infrastructure/db/database.js';
 import { createRepositories } from '../infrastructure/db/repositories.js';
 import { FileBlobStore } from '../infrastructure/files/blob-store.js';
+import { nodeHasher } from '../infrastructure/hash.js';
 import { SharpImageInspector } from '../infrastructure/files/image-inspector.js';
 
 export interface TestEnv {
@@ -44,6 +45,7 @@ export const createTestEnv = (): TestEnv => {
     access: new AccessPolicy(repos.grants),
     images: new SharpImageInspector(),
     blobs,
+    hash: nodeHasher,
   };
   return {
     ctx,

@@ -11,6 +11,7 @@ export * from './domain/screenshot.js';
 export * from './domain/session.js';
 export * from './domain/specification/index.js';
 export * from './domain/ui-view.js';
+export * from './domain/version.js';
 export * from './domain/vocabulary.js';
 
 export * from './application/access-policy.js';
@@ -19,6 +20,8 @@ export * from './application/drafts.js';
 export * from './application/event-bus.js';
 export * from './application/ports.js';
 export * from './application/projects.js';
+export * from './application/release.js';
 export * from './application/screenshots.js';
 export * from './application/sessions.js';
 export * from './application/ui-views.js';
+export * from './application/versions.js';

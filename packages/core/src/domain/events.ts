@@ -19,6 +19,14 @@ export type DomainEvent =
       readonly revision: number;
     }
   | {
+      readonly type: 'UiVersionCreated';
+      readonly projectId: string;
+      readonly uiViewId: string;
+      readonly sessionId: string;
+      readonly versionId: string;
+      readonly versionNo: number;
+    }
+  | {
       readonly type: 'SessionStatusChanged';
       readonly projectId: string;
       readonly sessionId: string;

@@ -133,7 +133,7 @@ Generators. Die UiVersion referenziert diejenige, die bei der Freigabe ausgelief
 
 ### UiVersion (unveränderlich)
 
-`id (uiver_…)`, `projectId`, `uiViewId`, `versionNo` (V1, V2, …), `screenshotId`
+`id (uvr_…)` (drei Buchstaben wie alle ID-Präfixe), `projectId`, `uiViewId`, `versionNo` (V1, V2, …), `screenshotId`
 (primär), `screenshotIds[]` (alle Varianten), `specRevisionId`, `promptVersionId`,
 `sessionId`, `predecessorVersionId?`, `pathAtVersion`, `changeDescription`,
 `createdBy`, `createdAt`.

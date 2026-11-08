@@ -224,3 +224,92 @@ describe('draft API', () => {
     });
   });
 });
+
+describe('release API', () => {
+  it('releases, maps INCOMPLETE to 422 and serves specification and prompt', async () => {
+    const project = json<{ id: string }>(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/projects',
+          headers: HOST,
+          payload: { name: 'Shop' },
+        })
+      ).body,
+    );
+    const uploaded = json<{ session: { id: string } }>(
+      (await upload(project.id, { uiPath: '/x' }, await makeImage('png', 400, 300))).body,
+    );
+    const sessionId = uploaded.session.id;
+    const post = (url: string, payload: unknown) =>
+      app.inject({ method: 'POST', url, headers: HOST, payload: payload as Record<string, unknown> });
+    const rowVersion = async () =>
+      json<{ session: { rowVersion: number } }>(
+        (await app.inject({ method: 'GET', url: `/api/v1/sessions/${sessionId}`, headers: HOST })).body,
+      ).session.rowVersion;
+
+    await post(`/api/v1/sessions/${sessionId}/draft/operations`, {
+      baseRevision: 0,
+      operations: [
+        {
+          op: 'addComponent',
+          componentId: 'cmp_01JZ0000000000000000000001',
+          parentId: null,
+          name: 'Header',
+          kind: 'container',
+        },
+      ],
+    });
+    const refused = await post(`/api/v1/sessions/${sessionId}/release`, { rowVersion: await rowVersion() });
+    expect(refused.statusCode).toBe(422);
+    const error = json<{ error: { code: string; details: { unacknowledgedWarnings: { id: string }[] } } }>(
+      refused.body,
+    ).error;
+    expect(error.code).toBe('INCOMPLETE');
+
+    const released = await post(`/api/v1/sessions/${sessionId}/release`, {
+      rowVersion: await rowVersion(),
+      acknowledgedWarnings: error.details.unacknowledgedWarnings.map((warning) => warning.id),
+    });
+    expect(released.statusCode).toBe(201);
+    const { uiVersion } = json<{ uiVersion: { id: string; versionNo: number } }>(released.body);
+    expect(uiVersion.versionNo).toBe(1);
+
+    const version = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}`,
+      headers: HOST,
+    });
+    expect(
+      json<{ snapshot: { components: unknown[] }; specRevision: Record<string, unknown> }>(version.body),
+    ).toMatchObject({ snapshot: { components: [{ name: 'Header' }] } });
+    expect(json<{ specRevision: Record<string, unknown> }>(version.body).specRevision).not.toHaveProperty(
+      'snapshot',
+    );
+
+    const markdown = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/specification?format=markdown`,
+      headers: HOST,
+    });
+    expect(markdown.headers['content-type']).toBe('text/markdown; charset=utf-8');
+    expect(markdown.body).toContain('# Specification: X (ui-x)');
+
+    const prompt = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/prompt`,
+      headers: HOST,
+    });
+    expect(prompt.body).toContain('# Implementation prompt: X (ui-x)');
+
+    const reopened = await post(`/api/v1/sessions/${sessionId}/reopen`, { reason: 'typo' });
+    expect(json<{ status: string }>(reopened.body).status).toBe('in_progress');
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/v1/projects/${project.id}/ui-views/ui-x/versions`,
+      headers: HOST,
+    });
+    expect(json<{ versions: unknown[] }>(list.body).versions).toHaveLength(1);
+  });
+});

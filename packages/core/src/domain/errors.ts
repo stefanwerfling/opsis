@@ -10,6 +10,8 @@ export const ERROR_CODES = [
   'INVALID_TRANSITION',
   'FORBIDDEN_ACTOR',
   'NOT_READY',
+  /** Release refused: blocking issues or unacknowledged warnings (details list them). */
+  'INCOMPLETE',
   'PAYLOAD_TOO_LARGE',
   'UNSUPPORTED_MEDIA',
 ] as const;

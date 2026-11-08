@@ -19,10 +19,13 @@ export const transitionSession = (
   session: Session,
   to: SessionStatus,
   note: string | null = null,
+  /** Fields that change together with the status (e.g. the result version of a release). */
+  changes: Partial<Pick<Session, 'resultVersionId' | 'baseVersionId'>> = {},
 ): Session => {
   assertTransition(session, to, actor);
   const updated: Session = {
     ...session,
+    ...changes,
     status: to,
     statusReason: note,
     rowVersion: session.rowVersion + 1,

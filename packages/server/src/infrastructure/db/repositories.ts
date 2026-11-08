@@ -36,6 +36,7 @@ import {
 } from '@opsis/core';
 import type { Database, Params } from './database.js';
 import { json, num, oneOf, optNum, optStr, str } from './rows.js';
+import { SqliteVersionRepository } from './version-repository.js';
 
 type Row = Record<string, unknown>;
 
@@ -676,6 +677,7 @@ export const createRepositories = (db: Database): Repositories => ({
   screenshots: new SqliteScreenshotRepository(db),
   sessions: new SqliteSessionRepository(db),
   drafts: new SqliteDraftRepository(db),
+  versions: new SqliteVersionRepository(db),
   grants: new SqliteGrantRepository(db),
   audit: new SqliteAuditLog(db),
 });

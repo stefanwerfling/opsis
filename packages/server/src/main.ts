@@ -4,6 +4,7 @@ import { AccessPolicy, EventBus, type AppContext } from '@opsis/core';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { systemClock } from './infrastructure/clock.js';
+import { nodeHasher } from './infrastructure/hash.js';
 import { Database } from './infrastructure/db/database.js';
 import { createRepositories } from './infrastructure/db/repositories.js';
 import { FileBlobStore } from './infrastructure/files/blob-store.js';
@@ -32,6 +33,7 @@ const main = async (): Promise<void> => {
     access: new AccessPolicy(repos.grants),
     images: new SharpImageInspector(),
     blobs: new FileBlobStore(join(config.dataDir, 'blobs')),
+    hash: nodeHasher,
   };
 
   const app = await buildApp({

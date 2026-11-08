@@ -12,6 +12,10 @@ export const ID_PREFIXES = {
   component: 'cmp',
   relation: 'rel',
   conflict: 'cfl',
+  uiVersion: 'uvr',
+  specRevision: 'spr',
+  componentRevision: 'cmr',
+  promptVersion: 'prm',
   agent: 'agt',
   audit: 'aud',
 } as const;

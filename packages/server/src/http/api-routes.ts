@@ -10,6 +10,7 @@ import {
   LOCAL_HUMAN,
   OpsisError,
   SESSION_STATUSES,
+  SPEC_FORMATS,
   cancelSession,
   changeDraft,
   changeUiPath,
@@ -18,6 +19,9 @@ import {
   createUiView,
   findUiView,
   getDraft,
+  getImplementationPrompt,
+  getSpecification,
+  getUiVersion,
   getProject,
   getScreenshot,
   getSession,
@@ -26,8 +30,11 @@ import {
   listScreenshots,
   listSessions,
   listUiViews,
+  listUiVersions,
   parseInput,
   readScreenshotImage,
+  releaseSpecification,
+  reopenSession,
   startReview,
   submitScreenshot,
   updateProject,
@@ -56,6 +63,8 @@ const SessionQuery = z.strictObject({
 const ScreenshotQuery = z.strictObject({ uiId: z.string().optional(), sessionId: z.string().optional() });
 const CancelBody = z.strictObject({ reason: z.string().max(2000).default('') });
 const ConfirmBody = z.strictObject({ acceptProposedPath: z.boolean() });
+const ReopenBody = z.strictObject({ reason: z.string().max(2000).default('') });
+const SpecQuery = z.strictObject({ format: z.enum(SPEC_FORMATS).default('json') });
 
 /** Multipart text fields accepted next to the image file. */
 const UploadFields = z.strictObject({
@@ -141,6 +150,44 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
   app.post('/api/v1/sessions/:id/confirm-assignment', (request) =>
     confirmAssignment(ctx, actor, params(IdParams, request).id, parseInput(ConfirmBody, request.body)),
   );
+
+  app.post('/api/v1/sessions/:id/release', async (request, reply) => {
+    const result = releaseSpecification(ctx, actor, params(IdParams, request).id, request.body);
+    return reply.status(201).send({ session: result.session, uiVersion: result.uiVersion });
+  });
+  app.post('/api/v1/sessions/:id/reopen', (request) => {
+    const body = parseInput(ReopenBody, request.body ?? {});
+    return reopenSession(ctx, actor, params(IdParams, request).id, body.reason);
+  });
+
+  // ── Released versions (immutable) ─────────────────────────────────────────
+  app.get('/api/v1/projects/:projectId/ui-views/:uiId/versions', (request) => {
+    const { projectId, uiId } = params(UiParams, request);
+    return { versions: listUiVersions(ctx, actor, findUiView(ctx, actor, projectId, uiId).id) };
+  });
+  app.get('/api/v1/versions/:id', (request) => {
+    const released = getUiVersion(ctx, actor, params(IdParams, request).id);
+    // The snapshot is returned parsed, so the raw canonical JSON (and the prompt text) is left out.
+    const { specRevision: spec, promptVersion: prompt } = released;
+    return {
+      uiVersion: released.uiVersion,
+      specRevision: { ...spec, snapshot: undefined },
+      promptVersion: { ...prompt, markdown: undefined },
+      references: released.references,
+      snapshot: released.snapshot,
+    };
+  });
+  app.get('/api/v1/versions/:id/specification', (request, reply) => {
+    const { format } = parseInput(SpecQuery, request.query);
+    const result = getSpecification(ctx, actor, { versionId: params(IdParams, request).id }, format);
+    if (format === 'json') return result.content;
+    return reply.type('text/markdown; charset=utf-8').send(result.content);
+  });
+  app.get('/api/v1/versions/:id/prompt', (request, reply) => {
+    // The local human reads the prompt; only an agent's retrieval marks a session delivered.
+    const prompt = getImplementationPrompt(ctx, actor, { versionId: params(IdParams, request).id });
+    return reply.type('text/markdown; charset=utf-8').send(prompt.markdown);
+  });
 
   // ── Drafts (editor) ───────────────────────────────────────────────────────
   app.get('/api/v1/sessions/:id/draft', (request) => getDraft(ctx, actor, params(IdParams, request).id));

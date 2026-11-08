@@ -4,7 +4,15 @@ import { OpsisError } from '../domain/errors.js';
 import type { DomainEvent } from '../domain/events.js';
 import { newId } from '../domain/ids.js';
 import type { AccessPolicy } from './access-policy.js';
-import type { BlobStore, Clock, EventPublisher, ImageInspector, Repositories, Transactor } from './ports.js';
+import type {
+  BlobStore,
+  Clock,
+  EventPublisher,
+  Hasher,
+  ImageInspector,
+  Repositories,
+  Transactor,
+} from './ports.js';
 
 /** Everything a use case needs. Assembled once in the composition root. */
 export interface AppContext {
@@ -15,6 +23,7 @@ export interface AppContext {
   readonly access: AccessPolicy;
   readonly images: ImageInspector;
   readonly blobs: BlobStore;
+  readonly hash: Hasher;
 }
 
 /** Validates untrusted input; any adapter (REST, MCP) gets the same VALIDATION error shape. */

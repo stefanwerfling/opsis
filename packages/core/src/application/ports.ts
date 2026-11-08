@@ -6,6 +6,13 @@ import type { Project } from '../domain/project.js';
 import type { ImageMimeType, Screenshot } from '../domain/screenshot.js';
 import type { Session, SessionStatus } from '../domain/session.js';
 import type { UiPathChange, UiView } from '../domain/ui-view.js';
+import type {
+  ComponentRevision,
+  PromptVersion,
+  SpecRevision,
+  SpecRevisionComponent,
+  UiVersion,
+} from '../domain/version.js';
 
 /**
  * Ports implemented by the infrastructure layer. They are synchronous on purpose:
@@ -72,6 +79,24 @@ export interface DraftRepository {
   save(draft: Draft): void;
 }
 
+/** Immutable history: only inserts and reads (architecture 05 §1). */
+export interface VersionRepository {
+  nextVersionNo(uiViewId: string): number;
+  nextRevisionNo(uiViewId: string): number;
+  findComponentRevision(componentId: string, contentSha256: string): ComponentRevision | undefined;
+  insertComponentRevision(revision: ComponentRevision): void;
+  insertSpecRevision(revision: SpecRevision): void;
+  insertSpecRevisionComponent(entry: SpecRevisionComponent): void;
+  insertPromptVersion(prompt: PromptVersion): void;
+  insertUiVersion(version: UiVersion): void;
+  findUiVersion(id: string): UiVersion | undefined;
+  findUiVersionByNo(uiViewId: string, versionNo: number): UiVersion | undefined;
+  listUiVersions(uiViewId: string): UiVersion[];
+  findSpecRevision(id: string): SpecRevision | undefined;
+  findPromptVersion(id: string): PromptVersion | undefined;
+  listSpecRevisionComponents(specRevisionId: string): SpecRevisionComponent[];
+}
+
 export interface AgentGrantRepository {
   listProjectIds(agentId: string): string[];
   hasGrant(agentId: string, projectId: string): boolean;
@@ -99,6 +124,7 @@ export interface Repositories {
   readonly screenshots: ScreenshotRepository;
   readonly sessions: SessionRepository;
   readonly drafts: DraftRepository;
+  readonly versions: VersionRepository;
   readonly grants: AgentGrantRepository;
   readonly audit: AuditLog;
 }
@@ -106,6 +132,11 @@ export interface Repositories {
 /** Runs `work` in one database transaction. `work` must be synchronous. */
 export interface Transactor {
   run<T>(work: () => T): T;
+}
+
+/** SHA-256 of UTF-8 text as lowercase hex (deterministic content hashes). */
+export interface Hasher {
+  sha256(text: string): string;
 }
 
 export interface Clock {

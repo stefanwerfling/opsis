@@ -55,7 +55,8 @@ Commit.
 ## Phase 3 – Spezifikation, Freigabe, Prompt
 
 1. `assessCompleteness`, Konfliktregeln, manuelle Konflikte.
-2. Freigabe-Use-Case (05 §2) inkl. ComponentRevision-Deduplizierung.
+2. Freigabe-Use-Case (05 §2) inkl. ComponentRevision-Deduplizierung. (Umgesetzt nach
+   Schritt 3, weil die Freigabe den Prompt bereits erzeugt.)
 3. Spezifikations-Builder (JSON) + Markdown-Renderer + Prompt-Generator (deterministisch,
    versioniert über `generatorVersion`). **Snapshot-Tests** für vollständige,
    unvollständige, widersprüchliche und verschachtelte Spezifikationen.
