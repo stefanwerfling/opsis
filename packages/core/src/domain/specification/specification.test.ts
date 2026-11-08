@@ -62,6 +62,7 @@ const session: Session = {
   proposedPath: null,
   assignmentNote: null,
   baseVersionId: null,
+  rebasedFromVersionId: null,
   resultVersionId: null,
   statusReason: null,
   rowVersion: 3,

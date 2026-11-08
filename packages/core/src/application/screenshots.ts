@@ -204,6 +204,7 @@ export const submitScreenshot = async (
         proposedPath: resolved.proposedPath,
         assignmentNote: resolved.note,
         baseVersionId: view.headVersionId,
+        rebasedFromVersionId: null,
         resultVersionId: null,
         statusReason: null,
         rowVersion: 1,

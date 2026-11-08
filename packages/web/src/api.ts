@@ -1,4 +1,5 @@
 import type {
+  ComponentHistoryEntry,
   CreateProjectInput,
   Draft,
   DraftOperation,
@@ -17,6 +18,7 @@ import type {
   UiVersion,
   UiView,
   UiViewDetails,
+  VersionComparison,
 } from '@opsis/core';
 import { pathTo } from './router.js';
 
@@ -123,6 +125,17 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
       ),
     reopenSession: (sessionId: string, reason: string) =>
       request<Session>('POST', base + pathTo('sessions', sessionId, 'reopen'), { reason }),
+    rebaseSession: (sessionId: string, rowVersion: number) =>
+      request<Session>('POST', base + pathTo('sessions', sessionId, 'rebase'), { rowVersion }),
+    compareVersions: (versionIdA: string, versionIdB: string) =>
+      request<VersionComparison>('GET', base + pathTo('versions', versionIdA, 'compare', versionIdB)),
+    componentHistory: async (projectId: string, uiId: string, componentId: string) =>
+      (
+        await request<{ history: ComponentHistoryEntry[] }>(
+          'GET',
+          base + pathTo('projects', projectId, 'ui-views', uiId, 'components', componentId, 'history'),
+        )
+      ).history,
 
     listVersions: async (projectId: string, uiId: string) =>
       (

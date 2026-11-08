@@ -37,6 +37,7 @@ import {
   parseInput,
   readScreenshotImage,
   releaseSpecification,
+  rebaseSession,
   reopenSession,
   startReview,
   submitScreenshot,
@@ -162,6 +163,9 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
     const result = releaseSpecification(ctx, actor, params(IdParams, request).id, request.body);
     return reply.status(201).send({ session: result.session, uiVersion: result.uiVersion });
   });
+  app.post('/api/v1/sessions/:id/rebase', (request) =>
+    rebaseSession(ctx, actor, params(IdParams, request).id, request.body),
+  );
   app.post('/api/v1/sessions/:id/reopen', (request) => {
     const body = parseInput(ReopenBody, request.body ?? {});
     return reopenSession(ctx, actor, params(IdParams, request).id, body.reason);

@@ -332,6 +332,7 @@ const toSession = (row: Row): Session => ({
   proposedPath: optStr(row, 'proposed_path'),
   assignmentNote: optStr(row, 'assignment_note'),
   baseVersionId: optStr(row, 'base_version_id'),
+  rebasedFromVersionId: optStr(row, 'rebased_from_version_id'),
   resultVersionId: optStr(row, 'result_version_id'),
   statusReason: optStr(row, 'status_reason'),
   rowVersion: num(row, 'row_version'),
@@ -352,6 +353,7 @@ const sessionParams = (s: Session): Params => ({
   proposedPath: s.proposedPath,
   assignmentNote: s.assignmentNote,
   baseVersionId: s.baseVersionId,
+  rebasedFromVersionId: s.rebasedFromVersionId,
   resultVersionId: s.resultVersionId,
   statusReason: s.statusReason,
   rowVersion: s.rowVersion,
@@ -375,27 +377,32 @@ class SqliteSessionRepository implements SessionRepository {
   insert(s: Session): void {
     this.db.execute(
       `INSERT INTO sessions (id, project_id, ui_view_id, agent_id, agent_session_ref, intent, title, status, assignment,
-         proposed_path, assignment_note, base_version_id, result_version_id, status_reason, row_version, created_at, updated_at)
+         proposed_path, assignment_note, base_version_id, rebased_from_version_id, result_version_id, status_reason, row_version,
+         created_at, updated_at)
        VALUES (:id, :projectId, :uiViewId, :agentId, :agentSessionRef, :intent, :title, :status, :assignment,
-         :proposedPath, :assignmentNote, :baseVersionId, :resultVersionId, :statusReason, :rowVersion, :createdAt, :updatedAt)`,
+         :proposedPath, :assignmentNote, :baseVersionId, :rebasedFromVersionId, :resultVersionId, :statusReason, :rowVersion,
+         :createdAt, :updatedAt)`,
       sessionParams(s),
     );
   }
 
   update(s: Session, expectedRowVersion: number): void {
     const changes = this.db.execute(
-      `UPDATE sessions SET status = :status, title = :title, assignment = :assignment, proposed_path = :proposedPath,
-         assignment_note = :assignmentNote, base_version_id = :baseVersionId, result_version_id = :resultVersionId,
+      `UPDATE sessions SET status = :status, intent = :intent, title = :title, assignment = :assignment,
+         proposed_path = :proposedPath, assignment_note = :assignmentNote, base_version_id = :baseVersionId,
+         rebased_from_version_id = :rebasedFromVersionId, result_version_id = :resultVersionId,
          status_reason = :statusReason, row_version = :rowVersion, updated_at = :updatedAt
        WHERE id = :id AND row_version = :expected`,
       {
         id: s.id,
         status: s.status,
+        intent: s.intent,
         title: s.title,
         assignment: s.assignment,
         proposedPath: s.proposedPath,
         assignmentNote: s.assignmentNote,
         baseVersionId: s.baseVersionId,
+        rebasedFromVersionId: s.rebasedFromVersionId,
         resultVersionId: s.resultVersionId,
         statusReason: s.statusReason,
         rowVersion: s.rowVersion,

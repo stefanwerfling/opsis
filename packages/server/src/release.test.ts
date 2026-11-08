@@ -15,6 +15,7 @@ import {
   getUiVersion,
   listUiVersions,
   newId,
+  rebaseSession,
   releaseSpecification,
   reopenSession,
   submitScreenshot,
@@ -300,6 +301,66 @@ describe('releaseSpecification', () => {
       basedOn: null,
       predecessor: 1,
     });
+  });
+});
+
+describe('parallel sessions', () => {
+  it('rebase onto the new head: the prompt notes the updated base and diffs against it', async () => {
+    const first = await submit();
+    describeAll(first.sessionId);
+    const v1 = release(first.sessionId);
+    // Two revisions of V1 in parallel.
+    const a = await submit(first.projectId, first.uiId);
+    const b = await submit(first.projectId, first.uiId);
+    edit(a.sessionId, { op: 'updateDraft', changeSummary: 'A' });
+    edit(b.sessionId, { op: 'updateDraft', changeSummary: 'B' });
+    const v2 = release(a.sessionId);
+    expect(errorOf(() => release(b.sessionId)).code).toBe('VERSION_CONFLICT');
+
+    const rowVersion = getSession(env.ctx, LOCAL_HUMAN, b.sessionId).session.rowVersion;
+    expect(errorOf(() => rebaseSession(env.ctx, agent, b.sessionId, { rowVersion })).code).toBe(
+      'FORBIDDEN_ACTOR',
+    );
+    expect(errorOf(() => rebaseSession(env.ctx, LOCAL_HUMAN, b.sessionId, { rowVersion: 1 })).code).toBe(
+      'VERSION_CONFLICT',
+    );
+    const rebased = rebaseSession(env.ctx, LOCAL_HUMAN, b.sessionId, { rowVersion });
+    expect(rebased).toMatchObject({
+      baseVersionId: v2.uiVersion.id,
+      rebasedFromVersionId: v1.uiVersion.id,
+      intent: 'revise',
+    });
+    // Nothing left to rebase.
+    expect(
+      errorOf(() => rebaseSession(env.ctx, LOCAL_HUMAN, b.sessionId, { rowVersion: rebased.rowVersion }))
+        .code,
+    ).toBe('CONFLICT');
+    // The draft was not merged or replaced.
+    expect(getDraft(env.ctx, LOCAL_HUMAN, b.sessionId).changeSummary).toBe('B');
+
+    const v3 = release(b.sessionId);
+    expect(v3.uiVersion).toMatchObject({ versionNo: 3, predecessorVersionId: v2.uiVersion.id });
+    const prompt = getImplementationPrompt(env.ctx, LOCAL_HUMAN, { versionId: v3.uiVersion.id }).markdown;
+    expect(prompt).toContain('predecessor V2');
+    expect(prompt).toContain('base updated from V1 to V2');
+    expect(prompt).toContain('## Changes compared to V2');
+  });
+
+  it('reopening a released session clears an earlier rebase note', async () => {
+    const first = await submit();
+    describeAll(first.sessionId);
+    release(first.sessionId);
+    const a = await submit(first.projectId, first.uiId);
+    const b = await submit(first.projectId, first.uiId);
+    edit(a.sessionId, { op: 'updateDraft', changeSummary: 'A' });
+    edit(b.sessionId, { op: 'updateDraft', changeSummary: 'B' });
+    release(a.sessionId);
+    rebaseSession(env.ctx, LOCAL_HUMAN, b.sessionId, {
+      rowVersion: getSession(env.ctx, LOCAL_HUMAN, b.sessionId).session.rowVersion,
+    });
+    const v3 = release(b.sessionId);
+    const reopened = reopenSession(env.ctx, LOCAL_HUMAN, b.sessionId, 'typo');
+    expect(reopened).toMatchObject({ baseVersionId: v3.uiVersion.id, rebasedFromVersionId: null });
   });
 });
 

@@ -41,6 +41,7 @@ export interface Labels {
     readonly firstVersion: string;
     readonly predecessor: Template;
     readonly baseVersion: Template;
+    readonly rebased: Template;
     readonly specRevision: string;
     readonly generator: string;
     readonly releasedLabel: string;
@@ -233,6 +234,7 @@ const en: Labels = {
     firstVersion: 'first version of this UI',
     predecessor: (v) => `predecessor V${String(v['versionNo'])} (\`${String(v['id'])}\`)`,
     baseVersion: (v) => `based on V${String(v['versionNo'])} (\`${String(v['id'])}\`)`,
+    rebased: (v) => `base updated from V${String(v['from'])} to V${String(v['to'])}`,
     specRevision: 'Specification revision',
     generator: 'Prompt generator',
     releasedLabel: 'Released',
@@ -431,6 +433,7 @@ const de: Labels = {
     firstVersion: 'erste Version dieser UI',
     predecessor: (v) => `Vorgänger V${String(v['versionNo'])} (\`${String(v['id'])}\`)`,
     baseVersion: (v) => `basiert auf V${String(v['versionNo'])} (\`${String(v['id'])}\`)`,
+    rebased: (v) => `Basis aktualisiert von V${String(v['from'])} auf V${String(v['to'])}`,
     specRevision: 'Spezifikationsrevision',
     generator: 'Prompt-Generator',
     releasedLabel: 'Freigegeben',

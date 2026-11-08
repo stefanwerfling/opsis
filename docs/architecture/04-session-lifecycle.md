@@ -78,6 +78,13 @@ beim zweistufigen Upload (siehe 06, `request_upload`) bleibt eine Session sichtb
 
   Ein automatisches Zusammenführen von Drafts gibt es nicht.
 
+  Umsetzung (Phase 4): Weg 1 ist `POST /api/v1/sessions/:id/rebase` (`rebaseSession`, nur
+  Mensch, Session `awaiting_review`/`in_progress`, `rowVersion`). Gespeichert wird die erste
+  frühere Basis (`sessions.rebased_from_version_id`), sodass auch mehrfaches Aufsetzen als
+  „von V3 auf V5“ erscheint. Wiedereröffnen setzt den Vermerk zurück. Der Freigabe-Dialog
+  zeigt den Diff Basis → Head (`compareVersions`), einen Link auf die neue Version und beide
+  Wege. Der Prompt vergleicht immer mit dem Vorgänger (Head bei der Freigabe).
+
 - Schon beim Öffnen zeigt der Editor einen Hinweis, wenn für dieselbe UiView weitere offene
   Sessions existieren.
 

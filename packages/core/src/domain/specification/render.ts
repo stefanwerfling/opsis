@@ -157,6 +157,9 @@ export const referenceLines = (
   if (snapshot.baseVersion !== null && snapshot.baseVersion.id !== refs.predecessor?.id) {
     version.push(t.baseVersion({ ...snapshot.baseVersion }));
   }
+  if (snapshot.rebasedFrom !== undefined && snapshot.baseVersion !== null) {
+    version.push(t.rebased({ from: snapshot.rebasedFrom.versionNo, to: snapshot.baseVersion.versionNo }));
+  }
   const lines = [
     `- **${t.project}:** ${snapshot.project.name} (\`${snapshot.project.id}\`)`,
     `- **${t.uiId}:** \`${snapshot.uiView.uiId}\``,

@@ -1,8 +1,10 @@
 import { assessCompleteness, type CompletenessIssue, type CompletenessReport } from '@opsis/core/browser';
-import type { Session } from '@opsis/core';
+import type { Session, VersionComparison } from '@opsis/core';
+import { diffSummary } from '../components/diff-summary.js';
 import { ApiError, type Api } from '../api.js';
 import { h, replaceChildren, type Child } from '../dom.js';
 import { t } from '../i18n/i18n.js';
+import { pathTo } from '../router.js';
 import { errorBox } from '../ui.js';
 import type { Editor } from './editor.js';
 import { issueLabel } from './issues.js';
@@ -28,7 +30,9 @@ export class ReleaseDialog {
   });
   private readonly output = h('div');
   /** Set after the server reported a newer head version (parallel release). */
-  private headMoved: { versionNo: number } | null = null;
+  private headMoved: { id: string; versionNo: number } | null = null;
+  /** Differences base → new head, loaded when the head moved (null: none or not loaded). */
+  private headDiff: VersionComparison | null = null;
   private conflictAcknowledged = false;
   private busy = false;
   private session: Session | null = null;
@@ -55,12 +59,47 @@ export class ReleaseDialog {
   open(session: Session, headVersion: { versionNo: number; id: string } | null): void {
     this.session = session;
     // Already known from the session details: another session released meanwhile.
-    this.headMoved =
-      headVersion !== null && headVersion.id !== session.baseVersionId
-        ? { versionNo: headVersion.versionNo }
-        : null;
+    this.setHeadMoved(headVersion !== null && headVersion.id !== session.baseVersionId ? headVersion : null);
     this.render();
     this.dialog.showModal();
+  }
+
+  /** Another session released meanwhile: remember the head and load what it changed. */
+  private setHeadMoved(head: { id: string; versionNo: number } | null): void {
+    this.headMoved = head;
+    this.headDiff = null;
+    const baseId = this.session?.baseVersionId ?? null;
+    if (head === null || baseId === null) return;
+    this.context.api
+      .compareVersions(baseId, head.id)
+      .then((comparison) => {
+        if (this.headMoved?.id !== head.id) return;
+        this.headDiff = comparison;
+        if (this.dialog.open) this.render();
+      })
+      .catch((error: unknown) => {
+        replaceChildren(this.output, errorBox(error));
+      });
+  }
+
+  /** Way 1: base the session on the new head; the human adapts the draft and releases again. */
+  private async rebase(): Promise<void> {
+    const session = this.session;
+    if (session === null || this.busy) return;
+    this.busy = true;
+    replaceChildren(this.output);
+    this.render();
+    try {
+      const current = await this.context.api.getSession(session.id);
+      this.session = await this.context.api.rebaseSession(session.id, current.session.rowVersion);
+      this.setHeadMoved(null);
+      this.conflictAcknowledged = false;
+    } catch (error) {
+      replaceChildren(this.output, errorBox(error));
+    } finally {
+      this.busy = false;
+      if (this.dialog.open) this.render();
+    }
   }
 
   destroy(): void {
@@ -177,7 +216,43 @@ export class ReleaseDialog {
         h(
           'div',
           { class: 'notice warning' },
-          h('p', {}, t('release.headMoved', { version: this.headMoved.versionNo })),
+          h(
+            'p',
+            {},
+            t('release.headMoved', { version: this.headMoved.versionNo }),
+            ' ',
+            h(
+              'a',
+              { attrs: { href: pathTo('versions', this.headMoved.id), target: '_blank' } },
+              t('release.viewHead', { version: this.headMoved.versionNo }),
+            ),
+          ),
+          this.headDiff === null
+            ? this.session?.baseVersionId === null && h('p', { class: 'muted' }, t('release.headNoBase'))
+            : [
+                h(
+                  'p',
+                  {},
+                  t('release.headDiff', {
+                    head: this.headDiff.b.versionNo,
+                    base: this.headDiff.a.versionNo,
+                  }),
+                ),
+                diffSummary(this.headDiff.diff),
+              ],
+          h(
+            'div',
+            { class: 'rebase' },
+            h(
+              'button',
+              {
+                attrs: { type: 'button', disabled: this.busy },
+                onClick: () => void this.rebase(),
+              },
+              t('release.rebase', { version: this.headMoved.versionNo }),
+            ),
+            h('p', { class: 'muted' }, t('release.rebaseHint', { version: this.headMoved.versionNo })),
+          ),
           h(
             'label',
             { class: 'check' },
@@ -232,7 +307,7 @@ export class ReleaseDialog {
       this.dialog.close();
     } catch (error) {
       if (error instanceof ApiError && error.code === 'VERSION_CONFLICT' && isHeadConflict(error.details)) {
-        this.headMoved = { versionNo: error.details.headVersion.versionNo };
+        this.setHeadMoved(error.details.headVersion);
       }
       replaceChildren(this.output, errorBox(error));
     } finally {
@@ -245,8 +320,9 @@ export class ReleaseDialog {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-/** VERSION_CONFLICT details of a parallel release: `{ headVersion: { versionNo } }`. */
-const isHeadConflict = (details: unknown): details is { headVersion: { versionNo: number } } =>
+/** VERSION_CONFLICT details of a parallel release: `{ headVersion: { id, versionNo } }`. */
+const isHeadConflict = (details: unknown): details is { headVersion: { id: string; versionNo: number } } =>
   isRecord(details) &&
   isRecord(details['headVersion']) &&
+  typeof details['headVersion']['id'] === 'string' &&
   typeof details['headVersion']['versionNo'] === 'number';

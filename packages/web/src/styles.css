@@ -967,3 +967,37 @@ pre.document {
   max-height: calc(100vh - 320px);
   overflow: auto;
 }
+
+/* ── Phase 4: differences between versions ───────────────────────────────── */
+.badge.diff-added {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.badge.diff-changed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge.diff-removed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.diff-summary ul {
+  margin: 4px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.diff-summary li {
+  margin: 2px 0;
+}
+
+.rebase {
+  margin: 8px 0;
+}
+
+.rebase p {
+  margin: 4px 0 0;
+}

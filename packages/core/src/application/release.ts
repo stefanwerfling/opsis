@@ -113,6 +113,7 @@ export const releaseSpecification = (
       uiView,
       session,
       baseVersion: base,
+      rebasedFrom: versionRef(ctx, session.rebasedFromVersionId),
       screenshots,
       draft,
       completeness: report,
@@ -274,6 +275,7 @@ export const reopenSession = (ctx: AppContext, actor: Actor, sessionId: string, 
       reason.slice(0, 2000) || 'reopened',
       {
         baseVersionId: session.resultVersionId,
+        rebasedFromVersionId: null,
         resultVersionId: null,
       },
     );
@@ -286,3 +288,67 @@ export const reopenSession = (ctx: AppContext, actor: Actor, sessionId: string, 
     });
     return updated;
   });
+
+export const RebaseInputSchema = z.strictObject({ rowVersion: z.number().int().min(1) });
+export type RebaseInput = z.input<typeof RebaseInputSchema>;
+
+/**
+ * Parallel release, way 1 (architecture 04 §2): the human sets the session's base to the
+ * current head after reviewing the differences. The draft is not changed – there is no
+ * automatic merge; the human adapts it and releases again. The prompt then notes
+ * "base updated from V(old) to V(head)".
+ */
+export const rebaseSession = (
+  ctx: AppContext,
+  actor: Actor,
+  sessionId: string,
+  rawInput: unknown,
+): Session => {
+  const input = parseInput(RebaseInputSchema, rawInput);
+  return commit(ctx, actor, (uow) => {
+    if (actor.type !== 'human') {
+      throw new OpsisError('FORBIDDEN_ACTOR', 'Only a human may change the base of a session');
+    }
+    const session = findSession(ctx, actor, sessionId);
+    if (session.status !== 'in_progress' && session.status !== 'awaiting_review') {
+      throw new OpsisError('INVALID_TRANSITION', `Session is "${session.status}"`, {
+        sessionId,
+        status: session.status,
+      });
+    }
+    if (session.rowVersion !== input.rowVersion) {
+      throw new OpsisError('VERSION_CONFLICT', 'The session was changed meanwhile', {
+        currentRowVersion: session.rowVersion,
+      });
+    }
+    const uiView = ctx.repos.uiViews.findById(session.uiViewId);
+    if (!uiView) throw new OpsisError('NOT_FOUND', `UI view of session "${sessionId}" not found`);
+    if (uiView.headVersionId === null || uiView.headVersionId === session.baseVersionId) {
+      throw new OpsisError('CONFLICT', 'The session is already based on the newest version', {
+        headVersionId: uiView.headVersionId,
+      });
+    }
+    const updated: Session = {
+      ...session,
+      intent: 'revise',
+      baseVersionId: uiView.headVersionId,
+      // Keep the first base across several rebases ("from V3 to V5").
+      rebasedFromVersionId: session.rebasedFromVersionId ?? session.baseVersionId,
+      rowVersion: session.rowVersion + 1,
+      updatedAt: uow.now,
+    };
+    ctx.repos.sessions.update(updated, session.rowVersion);
+    uow.audit({
+      projectId: session.projectId,
+      entityType: 'session',
+      entityId: sessionId,
+      action: 'rebase',
+      data: {
+        from: versionRef(ctx, session.baseVersionId)?.versionNo ?? null,
+        to: versionRef(ctx, uiView.headVersionId)?.versionNo ?? null,
+      },
+    });
+    uow.emit({ type: 'SessionChanged', projectId: session.projectId, sessionId });
+    return updated;
+  });
+};

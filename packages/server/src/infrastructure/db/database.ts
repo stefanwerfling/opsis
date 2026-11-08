@@ -2,6 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type { Transactor } from '@opsis/core';
 import { sql as migration001 } from './migrations/001-initial.js';
 import { sql as migration002 } from './migrations/002-draft-revision.js';
+import { sql as migration003 } from './migrations/003-session-rebase.js';
 
 interface Migration {
   readonly version: number;
@@ -12,6 +13,7 @@ interface Migration {
 const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'initial', sql: migration001 },
   { version: 2, name: 'draft-revision', sql: migration002 },
+  { version: 3, name: 'session-rebase', sql: migration003 },
 ];
 
 export type Params = Record<string, SQLInputValue>;

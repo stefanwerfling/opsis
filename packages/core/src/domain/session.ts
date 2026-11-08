@@ -39,6 +39,11 @@ export interface Session {
   /** Why the assignment needs confirmation (shown to the human). */
   readonly assignmentNote: string | null;
   readonly baseVersionId: string | null;
+  /**
+   * Earlier base when the human rebased the session onto a newer head (architecture 04 §2,
+   * way 1); the first base is kept across several rebases.
+   */
+  readonly rebasedFromVersionId: string | null;
   readonly resultVersionId: string | null;
   readonly statusReason: string | null;
   readonly rowVersion: number;

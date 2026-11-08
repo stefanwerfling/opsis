@@ -72,6 +72,8 @@ export interface SpecSnapshot {
   };
   /** Version the session was based on (revisions); null for the first version. */
   readonly baseVersion: VersionRef | null;
+  /** Earlier base when the session was rebased onto a newer head (absent otherwise). */
+  readonly rebasedFrom?: VersionRef;
   readonly primaryScreenshotId: string;
   readonly screenshots: readonly SnapshotScreenshot[];
   readonly goal: string;
@@ -104,6 +106,7 @@ export interface SnapshotInput {
   readonly uiView: UiView;
   readonly session: Session;
   readonly baseVersion: VersionRef | null;
+  readonly rebasedFrom?: VersionRef | null;
   /** Screenshots of the session; the first by sequence number is the primary one. */
   readonly screenshots: readonly Screenshot[];
   readonly draft: Draft;
@@ -140,6 +143,7 @@ export const buildSnapshot = (input: SnapshotInput): SpecSnapshot => {
       agentSessionRef: session.agentSessionRef,
     },
     baseVersion: input.baseVersion,
+    ...(input.rebasedFrom ? { rebasedFrom: input.rebasedFrom } : {}),
     primaryScreenshotId: primary.id,
     screenshots: screenshots.map((screenshot) => ({
       id: screenshot.id,
