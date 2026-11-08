@@ -4,3 +4,5 @@ node_modules
 data
 package-lock.json
 .idea
+# Generator output, compared byte for byte by the snapshot tests
+**/__snapshots__

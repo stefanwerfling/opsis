@@ -1,0 +1,415 @@
+import { describe, expect, it } from 'vitest';
+import { assessCompleteness } from '../completeness.js';
+import { applyDraftOperations, emptyDraft, type DraftOperation } from '../draft.js';
+import type { Project } from '../project.js';
+import type { Screenshot } from '../screenshot.js';
+import type { Session } from '../session.js';
+import type { UiView } from '../ui-view.js';
+import type { PromptLanguage } from '../vocabulary.js';
+import { canonicalJson } from './canonical-json.js';
+import { renderSpecificationMarkdown } from './markdown.js';
+import { generatePrompt } from './prompt.js';
+import {
+  buildSnapshot,
+  buildSpecificationDocument,
+  componentContent,
+  type ReleaseReferences,
+  type SpecSnapshot,
+} from './snapshot.js';
+
+/** Deterministic, valid ids (`cmp_01JZ0…0HEADER` style) so snapshot files stay stable. */
+const fid = (prefix: string, tag: string): string => `${prefix}_01JZ${tag.padStart(22, '0')}`;
+
+const NOW = '2026-11-08T10:00:00.000Z';
+const DESKTOP = fid('scr', 'DESK');
+const MOBILE = fid('scr', 'MB');
+
+const project = (promptLanguage: PromptLanguage): Project => ({
+  id: fid('prj', 'SHP'),
+  slug: 'demo-shop',
+  name: 'Demo Shop',
+  description: 'Online shop for garden tools. Web app built with TypeScript.',
+  promptLanguage,
+  metadata: {},
+  createdAt: NOW,
+  updatedAt: NOW,
+  archivedAt: null,
+});
+
+const uiView: UiView = {
+  id: fid('uiv', 'DASH'),
+  projectId: fid('prj', 'SHP'),
+  uiId: 'ui-dashboard',
+  path: '/dashboard',
+  name: 'Dashboard',
+  description: '',
+  headVersionId: null,
+  createdAt: NOW,
+  updatedAt: NOW,
+};
+
+const session: Session = {
+  id: fid('ses', 'S1'),
+  projectId: fid('prj', 'SHP'),
+  uiViewId: fid('uiv', 'DASH'),
+  agentId: fid('agt', 'A1'),
+  agentSessionRef: 'conversation-42',
+  intent: 'create',
+  title: 'Dashboard first draft',
+  status: 'in_progress',
+  assignment: 'confirmed',
+  proposedPath: null,
+  assignmentNote: null,
+  baseVersionId: null,
+  resultVersionId: null,
+  statusReason: null,
+  rowVersion: 3,
+  createdAt: NOW,
+  updatedAt: NOW,
+};
+
+const screenshot = (id: string, sequenceNo: number, extra: Partial<Screenshot>): Screenshot => ({
+  id,
+  projectId: fid('prj', 'SHP'),
+  uiViewId: fid('uiv', 'DASH'),
+  sessionId: session.id,
+  blobSha256: String(sequenceNo).repeat(64).slice(0, 64),
+  mimeType: 'image/png',
+  width: 1440,
+  height: 900,
+  viewportWidth: 1440,
+  viewportHeight: 900,
+  deviceCategory: 'desktop',
+  variantLabel: null,
+  sequenceNo,
+  capturedAt: null,
+  source: 'mcp',
+  submittedBy: 'agent:agt_1',
+  description: '',
+  createdAt: NOW,
+  ...extra,
+});
+
+const desktop = screenshot(DESKTOP, 1, { description: 'Logged-in state' });
+const mobile = screenshot(MOBILE, 2, {
+  width: 390,
+  height: 844,
+  viewportWidth: 390,
+  viewportHeight: 844,
+  deviceCategory: 'mobile',
+  variantLabel: 'iPhone',
+});
+
+const refs: ReleaseReferences = {
+  uiVersionId: fid('uvr', 'V1'),
+  versionNo: 1,
+  specRevisionId: fid('spr', 'R1'),
+  revisionNo: 1,
+  predecessor: null,
+  releasedAt: NOW,
+  releasedBy: 'human:local',
+  changeDescription: 'First version of the dashboard',
+};
+
+const ids = {
+  header: fid('cmp', 'HEADER'),
+  logo: fid('cmp', 'MARK'),
+  nav: fid('cmp', 'NAV'),
+  stats: fid('cmp', 'STATS'),
+  chart: fid('cmp', 'CHART'),
+  legend: fid('cmp', 'KEY'),
+  item: fid('cmp', 'ENTRY'),
+};
+
+const add = (
+  componentId: string,
+  parentId: string | null,
+  name: string,
+  kind: 'component' | 'container' | 'visual_area' | 'interactive' | 'group',
+  rect?: { x: number; y: number; width: number; height: number },
+  screenshotId = DESKTOP,
+): DraftOperation => ({
+  op: 'addComponent',
+  componentId,
+  parentId,
+  name,
+  kind,
+  ...(rect === undefined ? {} : { region: { screenshotId, ...rect } }),
+});
+
+const set = (
+  componentId: string,
+  group: string,
+  field: string,
+  value: string,
+  origin: 'user' | 'screenshot_derived' | 'auto_detected' = 'user',
+  note?: string,
+): DraftOperation =>
+  ({
+    op: 'setSpecValue',
+    componentId,
+    group,
+    field,
+    value: { value, origin, ...(note === undefined ? {} : { note }) },
+  }) as DraftOperation;
+
+const make = (
+  operations: DraftOperation[],
+  options: { language?: PromptLanguage; acknowledge?: 'all'; screenshots?: Screenshot[] } = {},
+): SpecSnapshot => {
+  const screenshots = options.screenshots ?? [desktop];
+  const draft = applyDraftOperations(emptyDraft(session.id, NOW), operations, { screenshots });
+  const completeness = assessCompleteness(draft, { assignment: 'confirmed' });
+  return buildSnapshot({
+    project: project(options.language ?? 'en'),
+    uiView,
+    session,
+    baseVersion: null,
+    screenshots,
+    draft,
+    completeness,
+    acknowledgedWarnings: options.acknowledge === 'all' ? completeness.warnings.map((w) => w.id) : [],
+  });
+};
+
+/** Fully specified dashboard: no warnings, two screenshot variants. */
+const complete = (language: PromptLanguage = 'en'): SpecSnapshot =>
+  make(
+    [
+      add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
+      add(ids.logo, ids.header, 'Logo', 'visual_area', { x: 24, y: 16, width: 140, height: 48 }),
+      add(ids.nav, ids.header, 'MainNavigation', 'interactive', { x: 900, y: 20, width: 500, height: 40 }),
+      add(ids.stats, null, 'StatisticsCard', 'component', { x: 24, y: 120, width: 400, height: 240 }),
+      {
+        op: 'setRegion',
+        componentId: ids.header,
+        screenshotId: MOBILE,
+        rect: { x: 0, y: 0, width: 390, height: 64 },
+      },
+      set(ids.header, 'general', 'description', 'Top bar with logo and navigation'),
+      set(ids.header, 'layout', 'positioning', 'Sticky at the top, full width'),
+      set(ids.header, 'visual', 'colors', 'Background #2457d6, text white', 'screenshot_derived'),
+      set(ids.header, 'visual', 'responsive', 'Below 768 px the navigation collapses into a menu button'),
+      set(ids.header, 'acceptance', 'expectedLayout', 'Header stays visible while scrolling'),
+      set(ids.header, 'acceptance', 'responsiveRequirements', 'Height 64 px on mobile'),
+      set(ids.logo, 'general', 'description', 'Shop logo, links to the start page'),
+      set(ids.logo, 'acceptance', 'expectedBehavior', 'Click opens /'),
+      set(ids.nav, 'general', 'description', 'Links: Dashboard, Orders, Settings'),
+      set(ids.nav, 'interaction', 'hover', 'Underline the hovered link'),
+      set(ids.nav, 'interaction', 'keyboard', 'Tab moves through the links, Enter opens'),
+      set(ids.nav, 'functional', 'actions', 'Navigates to the selected page'),
+      set(ids.nav, 'acceptance', 'expectedBehavior', 'Active page link is highlighted'),
+      set(ids.stats, 'general', 'description', 'Revenue of the last 30 days'),
+      set(ids.stats, 'functional', 'dataSources', 'GET /api/stats/revenue?days=30'),
+      set(ids.stats, 'interaction', 'loading', 'Skeleton placeholder'),
+      set(ids.stats, 'interaction', 'error', 'Message "Could not load revenue" with retry button'),
+      set(ids.stats, 'acceptance', 'functionalRequirements', 'Amount formatted in EUR'),
+      {
+        op: 'addRelation',
+        relationId: fid('rel', 'R1'),
+        fromComponentId: ids.nav,
+        toComponentId: ids.stats,
+        kind: 'controls',
+        description: 'Selecting "Orders" replaces the card',
+      },
+      {
+        op: 'updateDraft',
+        goal: 'Implement the dashboard page as shown.',
+        acceptance: ['Page loads in under 1 s', 'No layout shift after loading'],
+      },
+    ],
+    { language, screenshots: [desktop, mobile] },
+  );
+
+/** Little specified: missing fields, auto-detected value, open questions – released with acknowledged warnings. */
+const incomplete = (): SpecSnapshot =>
+  make(
+    [
+      add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
+      add(ids.stats, null, 'StatisticsCard', 'component'),
+      set(ids.header, 'visual', 'colors', '#2457d6', 'auto_detected'),
+      set(ids.stats, 'general', 'description', 'Shows revenue'),
+      { op: 'updateDraft', openQuestions: ['Which currency?', 'Is there a dark mode?'] },
+    ],
+    { acknowledge: 'all' },
+  );
+
+/** Resolved contradiction + geometry hint, German prompt. */
+const contradictory = (): SpecSnapshot =>
+  make(
+    [
+      add(ids.stats, null, 'Statistikkarte', 'container', { x: 24, y: 120, width: 400, height: 240 }),
+      add(ids.chart, ids.stats, 'Diagramm', 'visual_area', { x: 300, y: 300, width: 300, height: 120 }),
+      set(ids.stats, 'general', 'description', 'Umsatz der letzten 30 Tage'),
+      set(ids.stats, 'layout', 'sizing', 'Feste Breite 400 px'),
+      set(ids.stats, 'acceptance', 'expectedLayout', 'Karte ist 400 px breit'),
+      set(ids.chart, 'general', 'description', 'Liniendiagramm'),
+      set(ids.chart, 'layout', 'sizing', 'Volle Breite des Inhaltsbereichs'),
+      set(ids.chart, 'interaction', 'disabled', 'Ausgegraut ohne Daten'),
+      set(ids.chart, 'acceptance', 'expectedBehavior', 'Zeigt 30 Datenpunkte'),
+      {
+        op: 'addConflict',
+        conflictId: fid('cfl', 'C1'),
+        componentIds: [ids.stats, ids.chart],
+        description: 'Karte hat feste Breite, Diagramm soll volle Breite haben',
+      },
+      {
+        op: 'updateConflict',
+        conflictId: fid('cfl', 'C1'),
+        status: 'resolved',
+        resolution: 'Diagramm nutzt die volle Breite der Karte, nicht der Seite',
+      },
+    ],
+    { language: 'de', acknowledge: 'all' },
+  );
+
+/** Four levels deep, multi-line values with notes, German prompt. */
+const nested = (): SpecSnapshot =>
+  make(
+    [
+      add(ids.stats, null, 'Karte', 'container', { x: 0, y: 0, width: 600, height: 400 }),
+      add(ids.chart, ids.stats, 'Inhalt', 'group', { x: 10, y: 50, width: 580, height: 300 }),
+      add(ids.legend, ids.chart, 'Legende', 'component', { x: 20, y: 300, width: 300, height: 40 }),
+      add(ids.item, ids.legend, 'Legendeneintrag', 'interactive', { x: 24, y: 304, width: 90, height: 30 }),
+      add(ids.header, ids.stats, 'Kartenkopf', 'component', { x: 10, y: 10, width: 580, height: 36 }),
+      set(ids.stats, 'general', 'description', 'Karte mit Kopf und Inhalt'),
+      set(
+        ids.item,
+        'interaction',
+        'click',
+        'Klick blendet die Datenreihe aus.\nErneuter Klick blendet sie wieder ein.\n\n- Zustand bleibt beim Neuladen erhalten',
+        'user',
+        'Mit dem Produktteam abgestimmt',
+      ),
+      set(ids.item, 'acceptance', 'expectedBehavior', 'Ausgeblendete Reihe ist durchgestrichen'),
+      {
+        op: 'updateDraft',
+        goal: 'Karte gemäß Screenshot umsetzen.\nBestehende Komponenten wiederverwenden.',
+      },
+    ],
+    { language: 'de', acknowledge: 'all' },
+  );
+
+describe('prompt and specification generator (snapshots)', () => {
+  const cases: [string, () => SpecSnapshot][] = [
+    ['complete.en', () => complete('en')],
+    ['complete.de', () => complete('de')],
+    ['incomplete.en', incomplete],
+    ['contradictory.de', contradictory],
+    ['nested.de', nested],
+  ];
+  for (const [name, build] of cases) {
+    it(`renders the ${name} prompt`, async () => {
+      await expect(generatePrompt(build(), refs)).toMatchFileSnapshot(`__snapshots__/prompt.${name}.md`);
+    });
+    it(`renders the ${name} specification`, async () => {
+      await expect(renderSpecificationMarkdown(build(), refs)).toMatchFileSnapshot(
+        `__snapshots__/specification.${name}.md`,
+      );
+    });
+  }
+});
+
+describe('prompt generator rules', () => {
+  it('is deterministic', () => {
+    expect(generatePrompt(complete(), refs)).toBe(generatePrompt(complete(), refs));
+    expect(canonicalJson(complete())).toBe(canonicalJson(complete()));
+  });
+
+  it('contains the required sections in order', () => {
+    const headings = generatePrompt(complete(), refs)
+      .split('\n')
+      .filter((line) => line.startsWith('## '));
+    expect(headings).toEqual([
+      '## References',
+      '## Project context',
+      '## Implementation goal',
+      '## Reference screenshots',
+      '## Component tree',
+      '## Component descriptions',
+      '## Visual description',
+      '## Layout rules',
+      '## Functional requirements',
+      '## Interaction states',
+      '## Responsive behaviour',
+      '## Relations between components',
+      '## Acceptance criteria',
+      '## Open questions and limitations',
+    ]);
+  });
+
+  it('references UI-ID, path, version, revision and screenshot', () => {
+    const prompt = generatePrompt(complete(), refs);
+    for (const text of [
+      '`ui-dashboard`',
+      '`/dashboard`',
+      `V1 (\`${refs.uiVersionId}\`)`,
+      refs.specRevisionId,
+      DESKTOP,
+    ]) {
+      expect(prompt).toContain(text);
+    }
+  });
+
+  it('never presents unconfirmed or missing values as requirements', () => {
+    const prompt = generatePrompt(incomplete(), refs);
+    expect(prompt).toContain('_(auto-detected, NOT confirmed – not a requirement)_: #2457d6');
+    expect(prompt).toContain('Implementation goal\n\n_not specified_');
+    expect(prompt).toContain('_Not specified for:_ Header, StatisticsCard');
+    expect(prompt).toContain('- Which currency?');
+  });
+
+  it('copies user text verbatim, also in the German frame', () => {
+    const prompt = generatePrompt(nested(), refs);
+    expect(prompt).toContain(
+      '  > Klick blendet die Datenreihe aus.\n  > Erneuter Klick blendet sie wieder ein.\n  >\n  > - Zustand bleibt beim Neuladen erhalten\n  - _Hinweis:_ Mit dem Produktteam abgestimmt',
+    );
+    expect(prompt).toContain('# Implementierungsprompt: Dashboard (ui-dashboard)');
+  });
+});
+
+describe('snapshot', () => {
+  it('drops editor-only state and sorts acknowledgements', () => {
+    const snapshot = complete();
+    expect(snapshot.components[0]).not.toHaveProperty('hidden');
+    expect(snapshot.primaryScreenshotId).toBe(DESKTOP);
+    expect(snapshot.screenshots.map((shot) => shot.id)).toEqual([DESKTOP, MOBILE]);
+  });
+
+  it('component content ignores hierarchy, so moving a component keeps its revision', () => {
+    const before = complete().components.find((component) => component.componentId === ids.logo);
+    const moved = make([
+      add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
+      add(ids.logo, null, 'Logo', 'visual_area', { x: 24, y: 16, width: 140, height: 48 }),
+      set(ids.logo, 'general', 'description', 'Shop logo, links to the start page'),
+      set(ids.logo, 'acceptance', 'expectedBehavior', 'Click opens /'),
+    ]).components.find((component) => component.componentId === ids.logo);
+    expect(before && moved && canonicalJson(componentContent(moved))).toBe(
+      before && canonicalJson(componentContent(before)),
+    );
+  });
+
+  it('builds the machine-readable specification with references', () => {
+    const document = buildSpecificationDocument(complete(), refs, 'opsis-prompt/1.0.0');
+    expect(document.references).toMatchObject({
+      uiId: 'ui-dashboard',
+      uiPath: '/dashboard',
+      versionNo: 1,
+      revisionNo: 1,
+      screenshotIds: [DESKTOP, MOBILE],
+    });
+  });
+});
+
+describe('canonicalJson', () => {
+  it('sorts keys recursively and normalizes numbers', () => {
+    expect(canonicalJson({ b: 1, a: { d: [3, { y: -0, x: 1.5 }], c: null }, u: undefined })).toBe(
+      '{"a":{"c":null,"d":[3,{"x":1.5,"y":0}]},"b":1}',
+    );
+  });
+
+  it('rejects values JSON cannot represent', () => {
+    expect(() => canonicalJson({ a: Number.NaN })).toThrow();
+    expect(() => canonicalJson({ a: () => 1 })).toThrow();
+  });
+});

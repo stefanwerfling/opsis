@@ -9,6 +9,7 @@ export * from './domain/ids.js';
 export * from './domain/project.js';
 export * from './domain/screenshot.js';
 export * from './domain/session.js';
+export * from './domain/specification/index.js';
 export * from './domain/ui-view.js';
 export * from './domain/vocabulary.js';
 
