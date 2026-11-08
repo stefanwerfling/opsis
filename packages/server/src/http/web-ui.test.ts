@@ -55,6 +55,23 @@ describe('web UI delivery', () => {
     expect(response.headers['content-security-policy']).toBeUndefined();
   });
 
+  it('serves files that appear after startup (web UI rebuilt while running)', async () => {
+    writeFileSync(join(webRoot, 'assets', 'app-new.js'), 'console.log(2);');
+    const response = await app.inject({ method: 'GET', url: '/assets/app-new.js', headers: HOST });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toMatch(/javascript/);
+    expect(response.body).toBe('console.log(2);');
+  });
+
+  it.each(['/assets/missing.js', '/assets/old-hash.css', '/favicon.ico', '/robots.txt'])(
+    'answers a missing file %s with 404 instead of the app shell',
+    async (url) => {
+      const response = await app.inject({ method: 'GET', url, headers: HOST });
+      expect(response.statusCode).toBe(404);
+      expect(response.body).not.toBe(INDEX);
+    },
+  );
+
   it('keeps JSON 404 for unknown API routes and non-GET requests', async () => {
     const api = await app.inject({ method: 'GET', url: '/api/v1/nope', headers: HOST });
     expect(api.statusCode).toBe(404);

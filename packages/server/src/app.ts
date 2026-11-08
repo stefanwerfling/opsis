@@ -61,11 +61,26 @@ export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstanc
   return app;
 };
 
-/** Serves the built single-page app; unknown non-API GET paths fall back to index.html. */
+/**
+ * Client-side routes (`/projects/…`, `/sessions/…`) get the app shell. Paths with a file
+ * extension are real files: a missing one must be a 404 – answering a missing script with
+ * HTML would leave the browser with a blank page instead of a visible error.
+ */
+export const isAppRoute = (method: string, url: string): boolean => {
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  const path = url.split('?')[0] ?? '';
+  if (path.startsWith('/api/') || path.startsWith('/assets/')) return false;
+  const lastSegment = path.slice(path.lastIndexOf('/') + 1);
+  return !lastSegment.includes('.');
+};
+
+/** Serves the built single-page app; client routes fall back to index.html. */
 const registerWebUi = async (app: FastifyInstance, root: string): Promise<void> => {
   await app.register(fastifyStatic, {
     root,
-    wildcard: false,
+    // Resolve files per request (not a route table built at startup), so a rebuild of the
+    // web UI while the server runs is served correctly.
+    wildcard: true,
     index: false,
     setHeaders: (reply, path) => {
       // Vite puts content-hashed files under /assets – safe to cache forever.
@@ -73,10 +88,11 @@ const registerWebUi = async (app: FastifyInstance, root: string): Promise<void> 
       reply.header('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
     },
   });
+  // The root is a directory for the static plugin (403 without index); serve the shell.
+  app.get('/', async (_request, reply) => reply.header('cache-control', 'no-cache').sendFile('index.html'));
   app.setNotFoundHandler(async (request, reply) => {
-    const isPageRequest =
-      (request.method === 'GET' || request.method === 'HEAD') && !request.url.startsWith('/api/');
-    if (isPageRequest) return reply.header('cache-control', 'no-cache').sendFile('index.html');
+    if (isAppRoute(request.method, request.url))
+      return reply.header('cache-control', 'no-cache').sendFile('index.html');
     return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
   });
 };
