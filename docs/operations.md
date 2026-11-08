@@ -80,3 +80,22 @@ npm run e2e          # Build + Playwright: Ende-zu-Ende-Ablauf und Performance-M
 `npm run e2e` verwendet das installierte Google Chrome. Mit `OPSIS_E2E_CHANNEL=` (leer) und
 `npx playwright install chromium` läuft es mit Playwrights eigenem Chromium. Die
 Performance-Werte stehen danach in `test-results/perf.json`.
+
+## Docker
+
+```sh
+docker build -t opsis .
+docker run -d --name opsis \
+  -p 127.0.0.1:4777:4777 \
+  -v opsis-data:/data \
+  opsis
+docker exec opsis node packages/server/dist/cli.js agent create --name claude-code
+```
+
+Das Image (Node 24, Debian slim, ohne Dev-Abhängigkeiten) läuft als Benutzer `node` und
+speichert alles im Volume `/data`. Es hat einen Health-Check auf `/api/v1/health`. Im
+Container bindet der Server an `0.0.0.0` mit `OPSIS_UNSAFE_BIND=1`. Deshalb muss der Port
+**nur auf `127.0.0.1` des Hosts** veröffentlicht werden (`-p 127.0.0.1:…`). Ein `-p 4777:4777`
+würde OPSIS ohne Login im Netzwerk erreichbar machen (siehe [security.md](security.md)).
+Bei einem anderen Host-Port `OPSIS_PUBLIC_URL` setzen, damit die Links an Agenten stimmen,
+z. B. `-p 127.0.0.1:8080:4777 -e OPSIS_PUBLIC_URL=http://127.0.0.1:8080`.

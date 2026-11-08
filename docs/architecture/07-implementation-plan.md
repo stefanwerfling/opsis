@@ -125,6 +125,9 @@ Umsetzung (Phase 6, Schritte 3 und 4): Security-Review in [docs/security.md](../
 Dokumentation in [docs/mcp.md](../mcp.md) und [docs/operations.md](../operations.md),
 Agent-Beispiel in [examples/claude-code](../../examples/claude-code/).
 
+Umsetzung (Phase 6, Schritt 5): `Dockerfile` (mehrstufig, Node 24 slim, Benutzer `node`,
+Volume `/data`, Health-Check). Betrieb siehe [docs/operations.md](../operations.md#docker).
+
 ## Teststrategie (Kurzfassung)
 
 | Ebene       | Werkzeug                                        | Schwerpunkt                                                                          |
