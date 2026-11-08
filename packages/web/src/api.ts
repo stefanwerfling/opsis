@@ -1,5 +1,7 @@
 import type {
   CreateProjectInput,
+  Draft,
+  DraftOperation,
   CreateUiViewInput,
   ChangeUiPathInput,
   Project,
@@ -102,6 +104,12 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
       request<Session>('POST', base + pathTo('sessions', sessionId, 'confirm-assignment'), {
         acceptProposedPath,
       }),
+
+    getDraft: (sessionId: string) => request<Draft>('GET', base + pathTo('sessions', sessionId, 'draft')),
+    changeDraft: (
+      sessionId: string,
+      input: { baseRevision: number; operations: readonly DraftOperation[] },
+    ) => request<Draft>('POST', base + pathTo('sessions', sessionId, 'draft', 'operations'), input),
 
     listScreenshots: async (projectId: string, filter: { uiId?: string; sessionId?: string } = {}) =>
       (

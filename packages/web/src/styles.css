@@ -206,6 +206,10 @@ fieldset {
   gap: 8px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 input,
 select,
 textarea,
@@ -459,4 +463,364 @@ th {
   .viewer-stage {
     height: 70vh;
   }
+}
+
+/* ── Editor (session page) ─────────────────────────────────────────────────── */
+
+main.wide {
+  max-width: none;
+}
+
+.session-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.session-head h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.session-details > summary,
+.inline-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.inline-details[open] {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.save-state {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.save-state.save-error {
+  color: var(--danger);
+}
+
+.save-state.save-pending,
+.save-state.save-saving {
+  color: var(--accent);
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.messages:empty {
+  display: none;
+}
+
+.notice.error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(300px, 380px);
+  gap: 12px;
+  height: calc(100vh - 176px);
+  min-height: 520px;
+  margin-top: 8px;
+}
+
+.editor-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.editor-panel h2 {
+  margin-top: 0;
+}
+
+.editor-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.editor-canvas .viewer {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-canvas .viewer-stage {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.viewer-toolbar button.tool {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.viewer-toolbar button.tool[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+}
+
+button.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button.link {
+  background: none;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+/* Tree */
+
+.tree-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tree-toolbar button {
+  padding: 2px 8px;
+  min-width: 2em;
+}
+
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  outline-offset: -2px;
+}
+
+.tree-empty {
+  padding: 8px 4px;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px calc(4px + var(--depth, 0) * 14px);
+  border-radius: 4px;
+  cursor: default;
+  user-select: none;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+
+.tree-row:hover {
+  background: var(--bg);
+}
+
+.tree-row.selected {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tree-row.is-hidden .tree-name {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.tree-row.drop-before {
+  border-top-color: var(--accent);
+}
+
+.tree-row.drop-after {
+  border-bottom-color: var(--accent);
+}
+
+.tree-row.drop-inside {
+  outline: 2px dashed var(--accent);
+}
+
+.tree-caret,
+.tree-eye {
+  background: none;
+  color: var(--muted);
+  padding: 0;
+  width: 1.4em;
+  flex: none;
+}
+
+.tree-caret:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.tree-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--swatch, var(--accent));
+  flex: none;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px !important;
+}
+
+.tree-noregion {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.tree-eye {
+  margin-left: auto;
+}
+
+/* Inspector */
+
+.inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inspector-body h2 {
+  overflow-wrap: anywhere;
+}
+
+.inspector-body h3 {
+  font-size: 1rem;
+  margin: 8px 0 0;
+}
+
+.inspector-body textarea,
+.inspector-body input:not([type='checkbox']) {
+  width: 100%;
+}
+
+.inspector-body textarea {
+  resize: vertical;
+}
+
+.spec-group {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.spec-group > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.spec-group > summary > div {
+  display: inline;
+}
+
+.spec-group[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spec-group .field > div {
+  display: inline;
+}
+
+.spec-group .field {
+  position: relative;
+}
+
+.spec-group select.origin {
+  font-size: 0.8rem;
+  padding: 2px 4px;
+}
+
+.badge.muted {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.region-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rect-inputs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rect-inputs label {
+  display: flex;
+  flex-direction: column;
+}
+
+.rect-inputs input[type='number'] {
+  width: 100%;
+}
+
+.relations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.relation-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.relation-form input,
+.relation-form button {
+  grid-column: span 2;
+}
+
+@media (max-width: 1100px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  .editor-canvas .viewer-stage {
+    height: 70vh;
+  }
+}
+
+.relations select.relation-kind {
+  font-size: 0.8rem;
+  padding: 2px 4px;
 }

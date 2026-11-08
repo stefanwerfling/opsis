@@ -39,8 +39,18 @@ Commit.
 4. Editor: Komponentenbaum (Drag & Drop), Rechteck-Werkzeug, Transformer,
    Mehrfachauswahl, Überlappung (Klick-Zyklus durch übereinanderliegende Regionen),
    Hierarchie-Farben, Ein-/Ausblenden, Relationen ziehen.
+   Umsetzung: `web/src/editor/` – `DraftStore` (optimistische Anzeige, 400 ms Debounce,
+   Replay bei `VERSION_CONFLICT`), `Editor` (Auswahl, Werkzeug, Befehle → eine
+   Operations-Batch pro Geste), `EditorCanvas` (Werkzeuge Auswählen `V`, Zeichnen `R`,
+   Beziehung ziehen `L`; Pfeiltasten 1 px / Shift 10 px), `TreePanel` (HTML5-Drag-&-Drop
+   davor/hinein/danach, Tastatursteuerung). Gezogene Relationen starten mit der neutralen
+   Art `other` und werden im Inspektor präzisiert.
 5. Inspektor mit allen Gruppen. Herkunfts-Badge pro Feld, „nicht spezifiziert“ als
-   Default.
+   Default. Herkunft wird nur bei spezifizierten Feldern angezeigt; Texte werden nach
+   600 ms Pause oder beim Verlassen gespeichert.
+
+   Bekannte Grenzen nach Phase 2: kein Undo, Duplizieren kopiert keine Relationen, jede
+   Speicherung schreibt den ganzen Draft neu (bei 1000 Komponenten < 300 ms).
 
 ## Phase 3 – Spezifikation, Freigabe, Prompt
 
