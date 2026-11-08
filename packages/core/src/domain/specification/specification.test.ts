@@ -383,6 +383,36 @@ describe('revision prompt (snapshots)', () => {
     expect(prompt).toContain('_No specified differences to V1._');
     expect(generatePrompt(complete(), refs, complete())).not.toContain('## Changes compared to');
   });
+
+  it('lists confirmed values with unchanged text in one line, real changes before/after', () => {
+    const build = (origin: 'auto_detected' | 'user', size: string) =>
+      make([
+        add(ids.header, null, 'Header', 'container', { x: 0, y: 0, width: 1440, height: 80 }),
+        set(ids.header, 'visual', 'colors', '#2457d6', origin),
+        set(ids.header, 'visual', 'sizes', size, origin),
+        set(ids.header, 'acceptance', 'expectedLayout', 'Full width'),
+      ]);
+    const prompt = generatePrompt(build('user', '80 px high'), refsV2, build('auto_detected', '72 px high'));
+    expect(prompt).toContain(
+      '  - Confirmed with unchanged text (only auto-detected in V1, now a requirement): Visual properties › Colours',
+    );
+    expect(prompt).not.toContain('#2457d6\n    - _after_');
+    expect(prompt).toContain('  - **Visual properties › Sizes**');
+    expect(prompt).toContain('80 px high');
+  });
+
+  it('assumes the predecessor implemented only if it was delivered to an agent', () => {
+    const delivered = generatePrompt(revised('de'), refsV2, complete('de'));
+    const undelivered = generatePrompt(revised('de'), refsV2, complete('de'), {
+      predecessorDelivered: false,
+    });
+    expect(delivered).toContain('V1 gilt als umgesetzt.');
+    expect(undelivered).not.toContain('V1 gilt als umgesetzt.');
+    expect(undelivered).toContain('V1 wurde nie als an einen Agenten ausgeliefert vermerkt');
+    expect(generatePrompt(revised('en'), refsV2, complete('en'), { predecessorDelivered: false })).toContain(
+      'V1 was never recorded as delivered to an agent',
+    );
+  });
 });
 
 describe('compareVersions', () => {

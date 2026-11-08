@@ -2,9 +2,13 @@
  * "Changes compared to V(n)" for the prompt of a revision (architecture 05 §3): new,
  * changed (field by field, before → after), removed and unchanged components, plus
  * relations and the global parts. User texts stay verbatim.
+ *
+ * A value whose text stayed the same but which the human confirmed (auto_detected → user /
+ * screenshot_derived) is listed in one line per component instead of before/after: it is a
+ * real change (it becomes a requirement), but repeating the text twice only adds noise.
  */
 import type { SpecValue } from '../draft.js';
-import type { ComponentDiff, ListDiff, VersionDiff } from '../diff.js';
+import type { ComponentDiff, FieldChange, ListDiff, VersionDiff } from '../diff.js';
 import type { Labels } from './labels.js';
 import { componentLabel, fieldLabel, item, relationLine, verbatim, type FieldRef } from './render.js';
 import type { SpecSnapshot, VersionRef } from './snapshot.js';
@@ -15,8 +19,22 @@ const valueLine = (labels: Labels, label: string, value: SpecValue | null): stri
     ? `    - _${label}:_ _${labels.notSpecified}_`
     : `    - _${label}_ _(${labels.origins[value.origin]})_:${verbatim(value.value, '      ')}`;
 
+/** Same text, only confirmed by the human. */
+const isConfirmation = (change: FieldChange): boolean =>
+  change.before !== null &&
+  change.after !== null &&
+  change.before.origin === 'auto_detected' &&
+  change.after.origin !== 'auto_detected' &&
+  change.before.value === change.after.value;
+
+const fieldTitle = (labels: Labels, field: string): string => {
+  const ref = field.split('.') as unknown as FieldRef;
+  return `${labels.groups[ref[0]]} › ${fieldLabel(labels, ref)}`;
+};
+
 const componentChanges = (
   labels: Labels,
+  predecessor: VersionRef,
   previous: SpecSnapshot,
   snapshot: SpecSnapshot,
   diff: ComponentDiff,
@@ -57,11 +75,19 @@ const componentChanges = (
       })}`,
     );
   }
-  for (const change of diff.fields) {
-    const [group = '', field = ''] = change.field.split('.');
-    const ref = [group, field] as unknown as FieldRef;
+  const confirmed = diff.fields.filter(isConfirmation);
+  if (confirmed.length > 0) {
     lines.push(
-      `  - **${labels.groups[ref[0]]} › ${fieldLabel(labels, ref)}**`,
+      `  - ${t.confirmedFields({
+        versionNo: predecessor.versionNo,
+        fields: confirmed.map((change) => fieldTitle(labels, change.field)).join(', '),
+      })}`,
+    );
+  }
+  for (const change of diff.fields) {
+    if (isConfirmation(change)) continue;
+    lines.push(
+      `  - **${fieldTitle(labels, change.field)}**`,
       valueLine(labels, t.before, change.before),
       valueLine(labels, t.after, change.after),
     );
@@ -100,6 +126,8 @@ export const changesSection = (
   snapshot: SpecSnapshot,
   predecessor: VersionRef,
   diff: VersionDiff,
+  /** Whether the predecessor's prompt ever reached an agent (only then is it assumed implemented). */
+  predecessorDelivered = true,
 ): string[] => {
   const t = labels.text;
   const byStatus = (status: ComponentDiff['status']) =>
@@ -111,7 +139,8 @@ export const changesSection = (
   const relations = diff.relations;
   const globals = globalChanges(labels, diff);
 
-  const lines = [`## ${t.changesTitle({ ...predecessor })}`, '', t.changesIntro({ ...predecessor })];
+  const intro = predecessorDelivered ? t.changesIntro : t.changesIntroUndelivered;
+  const lines = [`## ${t.changesTitle({ ...predecessor })}`, '', intro({ ...predecessor })];
   const nothing =
     added.length + changed.length + removed.length === 0 &&
     relations.added.length + relations.removed.length + relations.changed.length === 0 &&
@@ -127,7 +156,7 @@ export const changesSection = (
   );
   section(
     t.changedComponents,
-    changed.flatMap((component) => componentChanges(labels, previous, snapshot, component)),
+    changed.flatMap((component) => componentChanges(labels, predecessor, previous, snapshot, component)),
   );
   section(
     t.removedComponents,

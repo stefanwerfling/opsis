@@ -7,7 +7,7 @@
 - **UI path:** `/dashboard`
 - **UI version:** V1 (`uvr_01JZ00000000000000000000V1`) – first version of this UI
 - **Specification revision:** 1 (`spr_01JZ00000000000000000000R1`)
-- **Prompt generator:** `opsis-prompt/1.1.0`
+- **Prompt generator:** `opsis-prompt/1.2.0`
 - **Released:** 2026-11-08T10:00:00.000Z by human:local
 - **Session:** `ses_01JZ00000000000000000000S1` – Dashboard first draft
 - **Agent session:** conversation-42

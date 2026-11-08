@@ -7,7 +7,8 @@
  *
  * Revisions: with the snapshot of the predecessor version the prompt starts with the
  * differences to it (new / changed field by field / removed / unchanged, `compareVersions`).
- * The full specification follows, so the prompt stays self-contained.
+ * The full specification follows, so the prompt stays self-contained. A predecessor that
+ * never reached an agent is not assumed to be implemented (`PromptOptions`).
  */
 import { compareVersions } from '../diff.js';
 import { changesSection } from './changes.js';
@@ -30,11 +31,21 @@ import {
 } from './render.js';
 import type { ReleaseReferences, SpecSnapshot } from './snapshot.js';
 
+export interface PromptOptions {
+  /**
+   * Whether the predecessor version was ever delivered to an agent. Only then does the change
+   * section assume it is implemented; otherwise the differences are orientation only.
+   * Default: true.
+   */
+  readonly predecessorDelivered?: boolean;
+}
+
 export const generatePrompt = (
   snapshot: SpecSnapshot,
   refs: ReleaseReferences,
   /** Snapshot of `refs.predecessor`; enables the change section of a revision. */
   previous?: SpecSnapshot,
+  options: PromptOptions = {},
 ): string => {
   const labels = LABELS[snapshot.project.promptLanguage];
   const t = labels.text;
@@ -133,7 +144,16 @@ export const generatePrompt = (
     context,
     goal,
     ...(previous !== undefined && refs.predecessor !== null
-      ? [changesSection(labels, previous, snapshot, refs.predecessor, compareVersions(previous, snapshot))]
+      ? [
+          changesSection(
+            labels,
+            previous,
+            snapshot,
+            refs.predecessor,
+            compareVersions(previous, snapshot),
+            options.predecessorDelivered ?? true,
+          ),
+        ]
       : []),
     [`## ${t.screenshots}`, '', ...screenshotLines(labels, snapshot)],
     [`## ${t.componentTree}`, '', ...componentTree(labels, snapshot)],

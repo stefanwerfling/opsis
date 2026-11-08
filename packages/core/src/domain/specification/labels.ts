@@ -96,6 +96,10 @@ export interface Labels {
     readonly root: string;
     readonly changesTitle: Template;
     readonly changesIntro: Template;
+    /** Intro when the predecessor was never delivered to an agent (it may not be implemented). */
+    readonly changesIntroUndelivered: Template;
+    /** Fields whose text stayed the same but which went from auto_detected to confirmed. */
+    readonly confirmedFields: Template;
     readonly noDifferences: Template;
     readonly addedComponents: string;
     readonly changedComponents: string;
@@ -294,6 +298,10 @@ const en: Labels = {
     changesTitle: (v) => `Changes compared to V${String(v['versionNo'])}`,
     changesIntro: (v) =>
       `V${String(v['versionNo'])} is assumed to be implemented. Implement the differences listed here; the full specification below remains the reference for everything else.`,
+    changesIntroUndelivered: (v) =>
+      `V${String(v['versionNo'])} was never recorded as delivered to an agent, so it may not be implemented. The differences listed here are for orientation only – implement the full specification below.`,
+    confirmedFields: (v) =>
+      `Confirmed with unchanged text (only auto-detected in V${String(v['versionNo'])}, now a requirement): ${String(v['fields'])}`,
     noDifferences: (v) => `No specified differences to V${String(v['versionNo'])}.`,
     addedComponents: 'New components',
     changedComponents: 'Changed components',
@@ -493,6 +501,10 @@ const de: Labels = {
     changesTitle: (v) => `Änderungen gegenüber V${String(v['versionNo'])}`,
     changesIntro: (v) =>
       `V${String(v['versionNo'])} gilt als umgesetzt. Setze die hier aufgeführten Unterschiede um; für alles Weitere bleibt die vollständige Spezifikation unten maßgeblich.`,
+    changesIntroUndelivered: (v) =>
+      `V${String(v['versionNo'])} wurde nie als an einen Agenten ausgeliefert vermerkt und ist daher möglicherweise nicht umgesetzt. Die hier aufgeführten Unterschiede dienen nur der Orientierung – setze die vollständige Spezifikation unten um.`,
+    confirmedFields: (v) =>
+      `Bestätigt, Text unverändert (in V${String(v['versionNo'])} nur automatisch erkannt, jetzt Anforderung): ${String(v['fields'])}`,
     noDifferences: (v) => `Keine spezifizierten Unterschiede zu V${String(v['versionNo'])}.`,
     addedComponents: 'Neue Komponenten',
     changedComponents: 'Geänderte Komponenten',

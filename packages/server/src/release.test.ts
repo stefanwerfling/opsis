@@ -346,6 +346,21 @@ describe('parallel sessions', () => {
     expect(prompt).toContain('## Changes compared to V2');
   });
 
+  it('assumes the predecessor implemented once an agent retrieved its prompt', async () => {
+    const first = await submit();
+    describeAll(first.sessionId);
+    release(first.sessionId);
+    getImplementationPrompt(env.ctx, agent, { sessionId: first.sessionId });
+    expect(getSession(env.ctx, LOCAL_HUMAN, first.sessionId).session.status).toBe('delivered');
+
+    const next = await submit(first.projectId, first.uiId);
+    edit(next.sessionId, { op: 'updateDraft', changeSummary: 'Next' });
+    const v2 = release(next.sessionId);
+    const prompt = getImplementationPrompt(env.ctx, LOCAL_HUMAN, { versionId: v2.uiVersion.id }).markdown;
+    expect(prompt).toContain('V1 is assumed to be implemented.');
+    expect(prompt).not.toContain('never recorded as delivered');
+  });
+
   it('reopening a released session clears an earlier rebase note', async () => {
     const first = await submit();
     describeAll(first.sessionId);
@@ -436,6 +451,8 @@ describe('revision sessions', () => {
     // The prompt of V2 lists the differences to V1.
     const prompt = getImplementationPrompt(env.ctx, LOCAL_HUMAN, { versionId: v2.uiVersion.id }).markdown;
     expect(prompt).toContain('## Changes compared to V1');
+    // V1 never reached an agent: it is not assumed to be implemented.
+    expect(prompt).toContain('V1 was never recorded as delivered to an agent');
     expect(prompt).toContain('x 0, y 0, 1200×100 → x 0, y 0, 1200×120');
     expect(prompt).toContain(
       `### Unchanged components (existing requirements, keep as they are)\n\n- Logo (\`${logo}\`)`,

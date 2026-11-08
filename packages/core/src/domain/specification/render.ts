@@ -9,7 +9,7 @@ import type { Labels } from './labels.js';
 import type { ReleaseReferences, SnapshotComponent, SpecSnapshot } from './snapshot.js';
 
 /** Bumped whenever the generated wording or structure changes (stored with every prompt). */
-export const GENERATOR_VERSION = 'opsis-prompt/1.1.0';
+export const GENERATOR_VERSION = 'opsis-prompt/1.2.0';
 
 export type FieldRef = readonly [SpecGroup, string];
 

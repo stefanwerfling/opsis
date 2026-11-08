@@ -152,8 +152,13 @@ export const releaseSpecification = (
       releasedBy: actorRef(actor),
       changeDescription: input.changeDescription.trim(),
     };
-    // Revision: the prompt lists the differences to the predecessor (the head).
-    const markdown = generatePrompt(snapshot, references, head ? storedSnapshot(ctx, head.id) : undefined);
+    // Revision: the prompt lists the differences to the predecessor (the head). It is assumed
+    // to be implemented only if its prompt ever reached an agent (session "delivered").
+    const predecessorDelivered =
+      headVersion === undefined || ctx.repos.sessions.findById(headVersion.sessionId)?.status === 'delivered';
+    const markdown = generatePrompt(snapshot, references, head ? storedSnapshot(ctx, head.id) : undefined, {
+      predecessorDelivered,
+    });
     const promptVersion: PromptVersion = {
       id: newId('promptVersion'),
       specRevisionId: specRevision.id,

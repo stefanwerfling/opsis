@@ -97,9 +97,15 @@ gelöschtes Geschwister keine Scheinänderungen erzeugt), Geometrie je Gerätekl
 REST: `GET /api/v1/versions/:a/compare/:b`.
 
 Der Prompt einer Version mit Vorgänger beginnt nach dem Ziel mit „Änderungen gegenüber
-V(n)“ (Generator `opsis-prompt/1.1.0`). Verglichen wird mit dem **Vorgänger** (dem Head bei
-der Freigabe), denn diesen Stand hat der Agent umgesetzt. Die vollständige Spezifikation
-folgt weiterhin, der Prompt bleibt eigenständig.
+V(n)“ (Generator `opsis-prompt/1.2.0`). Verglichen wird mit dem **Vorgänger** (dem Head bei
+der Freigabe). Die vollständige Spezifikation folgt weiterhin, der Prompt bleibt eigenständig.
+
+- Als umgesetzt gilt der Vorgänger nur, wenn ein Agent seinen Prompt abgerufen hat (Session
+  `delivered`). Sonst sagt der Abschnitt, dass V(n) möglicherweise nicht umgesetzt ist und
+  die Unterschiede nur der Orientierung dienen; maßgeblich ist dann die ganze Spezifikation.
+- Werte, deren Text gleich bleibt und die der Mensch nur bestätigt hat (`auto_detected` →
+  bestätigt), stehen je Komponente in einer Zeile („Bestätigt, Text unverändert …“) statt
+  als vorher/nachher. Sie sind trotzdem eine Änderung: Erst jetzt sind sie Anforderungen.
 
 **Visueller Vergleich:**
 
