@@ -6,6 +6,7 @@ import { formValue, h, replaceChildren, type Child } from '../dom.js';
 import { EditorCanvas } from '../editor/canvas.js';
 import { Editor, type Tool } from '../editor/editor.js';
 import { InspectorPanel } from '../editor/inspector.js';
+import { ReleaseDialog } from '../editor/release.js';
 import { DraftStore, type SaveState } from '../editor/store.js';
 import { TreePanel } from '../editor/tree.js';
 import { t } from '../i18n/i18n.js';
@@ -58,10 +59,58 @@ const actionButton = (
 };
 
 /** Session header: status, actions, assignment confirmation, details and history. */
-const sessionHeader = (details: SessionDetails, reload: () => void, saveIndicator: HTMLElement): Child[] => {
+const sessionHeader = (
+  details: SessionDetails,
+  reload: () => void,
+  saveIndicator: HTMLElement,
+  onRelease: () => void,
+): Child[] => {
   const { session, uiView, statusHistory, concurrentSessionIds } = details;
   const actionOutput = h('div');
   const actions: HTMLElement[] = [];
+
+  if (session.status === 'in_progress') {
+    actions.push(
+      h('button', { class: 'primary', attrs: { type: 'button' }, onClick: onRelease }, t('release.open')),
+    );
+  }
+  if (details.resultVersion !== null) {
+    actions.push(
+      h(
+        'a',
+        { class: 'button', attrs: { href: pathTo('versions', details.resultVersion.id) } },
+        t('session.released', { version: details.resultVersion.versionNo }),
+        ' · ',
+        t('session.viewVersion'),
+      ),
+    );
+  }
+  if (session.status === 'ready') {
+    const reopenForm = h(
+      'form',
+      { class: 'row' },
+      h('input', {
+        attrs: {
+          name: 'reason',
+          maxlength: 2000,
+          placeholder: t('session.reopenReason'),
+          'aria-label': t('session.reopenReason'),
+        },
+      }),
+      h('button', { attrs: { type: 'submit' } }, t('session.reopen')),
+      formError(),
+    );
+    reopenForm.addEventListener(
+      'submit',
+      handleSubmit(reopenForm, async () => {
+        await api.reopenSession(session.id, formValue(reopenForm, 'reason'));
+        reload();
+      }),
+    );
+    actions.push(
+      h('details', { class: 'inline-details' }, h('summary', {}, t('session.reopen')), reopenForm),
+    );
+  }
 
   if (session.status === 'awaiting_review') {
     actions.push(
@@ -202,6 +251,7 @@ class EditorWorkspace {
   private readonly viewer = new ScreenshotViewer();
   private readonly tree: TreePanel;
   private readonly inspector: InspectorPanel;
+  private readonly release: ReleaseDialog;
   private readonly tabs = h('div', { class: 'strip', attrs: { role: 'tablist' } });
   private readonly toolButtons = new Map<Tool, HTMLButtonElement>();
   private readonly unsubscribe: () => void;
@@ -239,6 +289,15 @@ class EditorWorkspace {
     new EditorCanvas(this.editor, this.viewer);
     this.tree = new TreePanel(this.editor);
     this.inspector = new InspectorPanel(this.editor);
+    this.release = new ReleaseDialog({
+      api,
+      editor: this.editor,
+      saveAll: async () => {
+        this.inspector.flushAll();
+        await this.store.flush();
+        return !this.store.hasUnsavedChanges;
+      },
+    });
 
     const tool = (value: Tool, label: string, title: string) => {
       const button = h(
@@ -307,6 +366,10 @@ class EditorWorkspace {
     if (next) this.showScreenshot(next);
   }
 
+  openRelease(details: SessionDetails): void {
+    this.release.open(details.session, details.headVersion);
+  }
+
   remoteRevision(revision: number): void {
     this.store.remoteRevision(revision);
   }
@@ -359,6 +422,7 @@ class EditorWorkspace {
     this.unsubscribe();
     this.tree.destroy();
     this.inspector.destroy();
+    this.release.destroy();
     this.viewer.destroy();
     await this.store.flush();
     this.store.destroy();
@@ -430,6 +494,9 @@ export const sessionView: View = (root, params) => {
             header.reload();
           },
           saveIndicator,
+          () => {
+            workspace?.openRelease(details);
+          },
         ),
       onData: (details) => {
         replaceChildren(

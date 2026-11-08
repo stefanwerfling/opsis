@@ -824,3 +824,140 @@ button.link {
   font-size: 0.8rem;
   padding: 2px 4px;
 }
+
+/* ── Release, contradictions, versions (phase 3) ─────────────────────────── */
+
+a.button {
+  display: inline-block;
+  background: var(--surface);
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  text-decoration: none;
+}
+
+.badge.warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+.hints {
+  border-left: 3px solid var(--warning-border);
+  padding: 4px 0 4px 10px;
+  margin: 8px 0;
+  font-size: 0.85rem;
+}
+
+.hints ul,
+.issues {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.hints li.blocking,
+.issues.blocking li {
+  color: var(--danger);
+}
+
+.conflicts {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conflict {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conflict-open {
+  border-color: var(--warning-border);
+}
+
+.conflict-text {
+  flex: 1;
+  white-space: pre-wrap;
+}
+
+.conflict-components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.conflict-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.release-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 20px 24px;
+}
+
+.release-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.release-dialog h3 {
+  margin: 16px 0 4px;
+  font-size: 1rem;
+}
+
+.release-warnings-head {
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.release-dialog .ok {
+  color: var(--ok);
+  margin: 4px 0;
+}
+
+.release-dialog .issues.warnings {
+  list-style: none;
+  padding-left: 0;
+}
+
+label.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.dialog-actions {
+  margin-top: 16px;
+}
+
+.version-tabs {
+  justify-content: space-between;
+  margin: 16px 0 8px;
+}
+
+pre.document {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-height: calc(100vh - 320px);
+  overflow: auto;
+}

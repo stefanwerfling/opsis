@@ -4,9 +4,11 @@ import {
   SPEC_GROUP_NAMES,
   SPEC_GROUPS,
   SPEC_ORIGINS,
+  assessCompleteness,
   findComponent,
   newId,
   regionOn,
+  type Conflict,
   type DraftComponent,
   type Rect,
   type SpecGroup,
@@ -16,6 +18,7 @@ import {
 import { h, replaceChildren, type Child } from '../dom.js';
 import { t, type MessageKey } from '../i18n/i18n.js';
 import type { Editor } from './editor.js';
+import { issueLabel } from './issues.js';
 
 const TEXT_COMMIT_DELAY_MS = 600;
 
@@ -190,6 +193,8 @@ export class InspectorPanel {
         read: () => draft().openQuestions.join('\n'),
         commit: (text) => editor.apply({ op: 'updateDraft', openQuestions: linesOf(text) }),
       }),
+      h('h3', {}, t('editor.conflicts')),
+      this.section(() => this.conflictsBlock(null)),
     ];
   }
 
@@ -279,9 +284,12 @@ export class InspectorPanel {
         this.section(() => [component()?.name ?? '']),
       ),
       this.section(() => this.regionBlock(componentId)),
+      this.section(() => this.hintsBlock(componentId)),
       ...groups,
       h('h3', {}, t('editor.relations')),
       this.section(() => this.relationsBlock(componentId)),
+      h('h3', {}, t('editor.conflicts')),
+      this.section(() => this.conflictsBlock(componentId)),
     ];
   }
 
@@ -336,6 +344,203 @@ export class InspectorPanel {
     });
     element.querySelector('.field-label')?.after(status, origin);
     return element;
+  }
+
+  /** Completeness issues of this component (the release dialog shows all of them). */
+  private hintsBlock(componentId: string): Child[] {
+    const draft = this.editor.draft;
+    const report = assessCompleteness(draft, { assignment: 'confirmed' });
+    const issues = [...report.blocking, ...report.warnings].filter(
+      (issue) => issue.componentId === componentId,
+    );
+    if (issues.length === 0) return [];
+    return [
+      h(
+        'div',
+        { class: 'hints' },
+        h('strong', {}, t('editor.hints')),
+        h(
+          'ul',
+          {},
+          issues.map((issue) =>
+            h(
+              'li',
+              { class: issue.severity === 'blocking' ? 'blocking' : '' },
+              issueLabel(issue, draft, false),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /**
+   * Contradictions recorded by the human. With `componentId` only those involving the
+   * component (new ones involve it); without, all of them (draft view).
+   */
+  private conflictsBlock(componentId: string | null): Child[] {
+    const editor = this.editor;
+    const draft = editor.draft;
+    const disabled = editor.readOnly;
+    const nameOf = (id: string) => findComponent(draft, id)?.name ?? id;
+    const conflicts = draft.conflicts.filter(
+      (conflict) => componentId === null || conflict.componentIds.includes(componentId),
+    );
+    /** Edits from a form: release the focus first so the section can be rebuilt. */
+    const applyFromForm = (form: HTMLFormElement, run: () => boolean): void => {
+      (document.activeElement as HTMLElement | null)?.blur();
+      if (run()) form.reset();
+    };
+
+    const item = (conflict: Conflict) => {
+      const resolution = h('input', {
+        attrs: {
+          placeholder: t('editor.resolution'),
+          'aria-label': t('editor.resolution'),
+          maxlength: 10000,
+          required: true,
+          disabled,
+        },
+      });
+      const resolveForm = h(
+        'form',
+        {
+          class: 'row',
+          onSubmit: (event) => {
+            event.preventDefault();
+            applyFromForm(resolveForm, () =>
+              editor.apply({
+                op: 'updateConflict',
+                conflictId: conflict.id,
+                status: 'resolved',
+                resolution: resolution.value,
+              }),
+            );
+          },
+        },
+        resolution,
+        h('button', { attrs: { type: 'submit', disabled } }, t('editor.resolve')),
+      );
+      return h(
+        'li',
+        { class: `conflict conflict-${conflict.status}` },
+        h(
+          'div',
+          { class: 'row' },
+          h(
+            'span',
+            { class: `badge ${conflict.status === 'open' ? 'warning' : 'muted'}` },
+            t(`conflict.${conflict.status}`),
+          ),
+          h('span', { class: 'conflict-text' }, conflict.description),
+          h(
+            'button',
+            {
+              class: 'link',
+              attrs: {
+                type: 'button',
+                disabled,
+                'aria-label': t('editor.removeConflict'),
+                title: t('editor.removeConflict'),
+              },
+              onClick: () => {
+                editor.apply({ op: 'deleteConflict', conflictId: conflict.id });
+              },
+            },
+            '✕',
+          ),
+        ),
+        conflict.componentIds.length > 0 &&
+          h(
+            'div',
+            { class: 'conflict-components' },
+            conflict.componentIds.map((id) =>
+              h(
+                'button',
+                {
+                  class: 'link',
+                  attrs: { type: 'button' },
+                  onClick: () => {
+                    editor.select([id]);
+                  },
+                },
+                nameOf(id),
+              ),
+            ),
+          ),
+        conflict.status === 'open'
+          ? resolveForm
+          : h(
+              'div',
+              { class: 'row' },
+              h('small', {}, `${t('editor.resolution')} ${conflict.resolution}`),
+              h(
+                'button',
+                {
+                  class: 'link',
+                  attrs: { type: 'button', disabled },
+                  onClick: () => {
+                    editor.apply({ op: 'updateConflict', conflictId: conflict.id, status: 'open' });
+                  },
+                },
+                t('editor.reopenConflict'),
+              ),
+            ),
+      );
+    };
+
+    const description = h('textarea', {
+      attrs: {
+        rows: 2,
+        placeholder: t('editor.conflictDescription'),
+        'aria-label': t('editor.conflictDescription'),
+        maxlength: 10000,
+        required: true,
+        disabled,
+      },
+    });
+    const others = draft.components.filter((component) => component.componentId !== componentId);
+    const also =
+      componentId !== null && others.length > 0
+        ? h(
+            'select',
+            { attrs: { 'aria-label': t('editor.conflictAlso'), disabled } },
+            h('option', { attrs: { value: '' } }, t('editor.conflictOnlyThis')),
+            others.map((component) =>
+              h('option', { attrs: { value: component.componentId } }, component.name),
+            ),
+          )
+        : null;
+    const addForm = h(
+      'form',
+      {
+        class: 'conflict-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          const componentIds =
+            componentId === null ? [] : [componentId, ...(also?.value ? [also.value] : [])];
+          applyFromForm(addForm, () =>
+            editor.apply({
+              op: 'addConflict',
+              conflictId: newId('conflict'),
+              componentIds,
+              description: description.value,
+            }),
+          );
+        },
+      },
+      description,
+      also !== null &&
+        h('label', { class: 'field' }, h('span', { class: 'field-label' }, t('editor.conflictAlso')), also),
+      h('button', { attrs: { type: 'submit', disabled } }, t('editor.addConflict')),
+    );
+
+    return [
+      conflicts.length === 0
+        ? h('p', { class: 'muted' }, t('editor.noConflicts'))
+        : h('ul', { class: 'conflicts' }, conflicts.map(item)),
+      addForm,
+    ];
   }
 
   private regionBlock(componentId: string): Child[] {

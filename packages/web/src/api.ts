@@ -5,11 +5,15 @@ import type {
   CreateUiViewInput,
   ChangeUiPathInput,
   Project,
+  ReleaseInput,
+  ReleaseResult,
+  ReleasedVersion,
   Screenshot,
   Session,
   SessionDetails,
   SessionStatus,
   SubmitScreenshotResult,
+  UiVersion,
   UiView,
   UiViewDetails,
 } from '@opsis/core';
@@ -60,6 +64,11 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
     if (!response.ok) throw await toApiError(response);
     return (await response.json()) as T;
   };
+  const requestText = async (url: string): Promise<string> => {
+    const response = await fetchImpl(url, { method: 'GET', headers: { accept: 'text/markdown' } });
+    if (!response.ok) throw await toApiError(response);
+    return response.text();
+  };
 
   const base = '/api/v1';
   const query = (params: Record<string, string | undefined>): string => {
@@ -104,6 +113,35 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
       request<Session>('POST', base + pathTo('sessions', sessionId, 'confirm-assignment'), {
         acceptProposedPath,
       }),
+
+    release: (sessionId: string, input: ReleaseInput) =>
+      request<Pick<ReleaseResult, 'session' | 'uiVersion'>>(
+        'POST',
+        base + pathTo('sessions', sessionId, 'release'),
+        input,
+      ),
+    reopenSession: (sessionId: string, reason: string) =>
+      request<Session>('POST', base + pathTo('sessions', sessionId, 'reopen'), { reason }),
+
+    listVersions: async (projectId: string, uiId: string) =>
+      (
+        await request<{ versions: UiVersion[] }>(
+          'GET',
+          base + pathTo('projects', projectId, 'ui-views', uiId, 'versions'),
+        )
+      ).versions,
+    getVersion: (versionId: string) =>
+      request<
+        Omit<ReleasedVersion, 'specRevision' | 'promptVersion'> & {
+          specRevision: Omit<ReleasedVersion['specRevision'], 'snapshot'>;
+          promptVersion: Omit<ReleasedVersion['promptVersion'], 'markdown'>;
+        }
+      >('GET', base + pathTo('versions', versionId)),
+    getPrompt: (versionId: string) => requestText(base + pathTo('versions', versionId, 'prompt')),
+    getSpecificationMarkdown: (versionId: string) =>
+      requestText(base + pathTo('versions', versionId, 'specification') + '?format=markdown'),
+    getSpecificationJson: (versionId: string) =>
+      request<unknown>('GET', base + pathTo('versions', versionId, 'specification') + '?format=json'),
 
     getDraft: (sessionId: string) => request<Draft>('GET', base + pathTo('sessions', sessionId, 'draft')),
     changeDraft: (

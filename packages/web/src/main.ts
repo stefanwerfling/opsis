@@ -15,12 +15,14 @@ import { projectView } from './views/project.js';
 import { projectsView } from './views/projects.js';
 import { sessionView } from './views/session.js';
 import { uiViewView } from './views/ui-view.js';
+import { versionView } from './views/version.js';
 
 const ROUTES: readonly (readonly [pattern: string, view: View])[] = [
   ['/', projectsView],
   ['/projects/:projectId', projectView],
   ['/projects/:projectId/ui/:uiId', uiViewView],
   ['/sessions/:sessionId', sessionView],
+  ['/versions/:versionId', versionView],
 ];
 
 const notFoundView: View = (root) => {

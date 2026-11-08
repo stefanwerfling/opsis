@@ -78,6 +78,10 @@ export interface SessionDetails {
   readonly statusHistory: SessionStatusEvent[];
   /** Other open sessions on the same UI view – shown as a conflict hint in the editor. */
   readonly concurrentSessionIds: string[];
+  /** The version this session released (ready/delivered). */
+  readonly resultVersion: { readonly id: string; readonly versionNo: number } | null;
+  /** Current head of the UI view, to warn before a release when another session was faster. */
+  readonly headVersion: { readonly id: string; readonly versionNo: number } | null;
 }
 
 const OPEN_STATUSES: readonly SessionStatus[] = [
@@ -87,6 +91,11 @@ const OPEN_STATUSES: readonly SessionStatus[] = [
   'in_progress',
   'ready',
 ];
+
+const versionSummary = (ctx: AppContext, id: string | null): { id: string; versionNo: number } | null => {
+  const version = id === null ? undefined : ctx.repos.versions.findUiVersion(id);
+  return version ? { id: version.id, versionNo: version.versionNo } : null;
+};
 
 export const getSession = (ctx: AppContext, actor: Actor, sessionId: string): SessionDetails => {
   const session = findSession(ctx, actor, sessionId);
@@ -101,6 +110,8 @@ export const getSession = (ctx: AppContext, actor: Actor, sessionId: string): Se
       .list({ projectId: session.projectId, uiViewId: session.uiViewId, statuses: OPEN_STATUSES })
       .map((other) => other.id)
       .filter((id) => id !== sessionId),
+    resultVersion: versionSummary(ctx, session.resultVersionId),
+    headVersion: versionSummary(ctx, uiView.headVersionId),
   };
 };
 

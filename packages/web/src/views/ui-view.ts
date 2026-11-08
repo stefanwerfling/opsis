@@ -1,4 +1,4 @@
-import type { DomainEvent, Screenshot, UiViewDetails } from '@opsis/core';
+import type { DomainEvent, Screenshot, UiVersion, UiViewDetails } from '@opsis/core';
 import { api } from '../api.js';
 import { sessionTable } from '../components/lists.js';
 import { formValue, h } from '../dom.js';
@@ -54,6 +54,30 @@ const screenshotGrid = (screenshots: readonly Screenshot[]): HTMLElement =>
               : h('a', { attrs: { href: pathTo('sessions', screenshot.sessionId) } }, figure),
           );
         }),
+      );
+
+const versionList = (versions: readonly UiVersion[]): HTMLElement =>
+  versions.length === 0
+    ? h('p', { class: 'muted' }, t('ui.noVersions'))
+    : h(
+        'ol',
+        { class: 'history versions' },
+        [...versions]
+          .reverse()
+          .map((version) =>
+            h(
+              'li',
+              {},
+              h(
+                'a',
+                { attrs: { href: pathTo('versions', version.id) } },
+                h('strong', {}, `V${String(version.versionNo)}`),
+              ),
+              ' · ',
+              formatDateTime(version.createdAt),
+              version.changeDescription !== '' && ` · ${version.changeDescription}`,
+            ),
+          ),
       );
 
 const detailsBlock = (details: UiViewDetails): HTMLElement[] => {
@@ -134,6 +158,13 @@ export const uiViewView: View = (root, params) => {
       render: screenshotGrid,
     }),
   );
+  const versions = disposer.add(
+    liveSection({
+      load: () => api.listVersions(projectId, uiId),
+      relevant: (event) => event.type === 'UiVersionCreated' && ofProject(event),
+      render: versionList,
+    }),
+  );
   const sessions = disposer.add(
     liveSection({
       load: async () => {
@@ -163,6 +194,7 @@ export const uiViewView: View = (root, params) => {
         'div',
         { class: 'stack' },
         details.element,
+        h('section', {}, h('h2', {}, t('ui.versions')), versions.element),
         h('section', {}, h('h2', {}, t('project.sessions')), sessions.element),
       ),
       h(
