@@ -1,5 +1,6 @@
 import type { Actor } from '../domain/actor.js';
 import type { Timestamp } from '../domain/common.js';
+import type { Draft } from '../domain/draft.js';
 import type { DomainEvent } from '../domain/events.js';
 import type { Project } from '../domain/project.js';
 import type { ImageMimeType, Screenshot } from '../domain/screenshot.js';
@@ -65,6 +66,12 @@ export interface SessionRepository {
   createEmptyDraft(sessionId: string, at: Timestamp): void;
 }
 
+export interface DraftRepository {
+  find(sessionId: string): Draft | undefined;
+  /** Replaces the stored draft (fields, components, regions, relations) of the session. */
+  save(draft: Draft): void;
+}
+
 export interface AgentGrantRepository {
   listProjectIds(agentId: string): string[];
   hasGrant(agentId: string, projectId: string): boolean;
@@ -91,6 +98,7 @@ export interface Repositories {
   readonly uiViews: UiViewRepository;
   readonly screenshots: ScreenshotRepository;
   readonly sessions: SessionRepository;
+  readonly drafts: DraftRepository;
   readonly grants: AgentGrantRepository;
   readonly audit: AuditLog;
 }

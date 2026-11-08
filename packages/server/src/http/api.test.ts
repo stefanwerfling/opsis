@@ -166,3 +166,61 @@ describe('REST API', () => {
     controller.abort();
   });
 });
+
+describe('draft API', () => {
+  it('reads and changes the draft, maps conflicts to 409', async () => {
+    const project = json<{ id: string }>(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/projects',
+          headers: HOST,
+          payload: { name: 'Shop' },
+        })
+      ).body,
+    );
+    const uploaded = json<{ session: { id: string }; screenshot: { id: string } }>(
+      (await upload(project.id, { uiPath: '/x' }, await makeImage('png', 400, 300))).body,
+    );
+    const sessionId = uploaded.session.id;
+
+    const initial = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sessions/${sessionId}/draft`,
+      headers: HOST,
+    });
+    expect(initial.statusCode).toBe(200);
+    expect(json<{ revision: number }>(initial.body).revision).toBe(0);
+
+    const operations = [
+      {
+        op: 'addComponent',
+        componentId: 'cmp_01JZ0000000000000000000001',
+        parentId: null,
+        name: 'Header',
+        kind: 'container',
+        region: { screenshotId: uploaded.screenshot.id, x: 0, y: 0, width: 400, height: 40 },
+      },
+    ];
+    const changed = await app.inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${sessionId}/draft/operations`,
+      headers: HOST,
+      payload: { baseRevision: 0, operations },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(json<{ revision: number; components: unknown[] }>(changed.body)).toMatchObject({ revision: 1 });
+
+    const stale = await app.inject({
+      method: 'POST',
+      url: `/api/v1/sessions/${sessionId}/draft/operations`,
+      headers: HOST,
+      payload: { baseRevision: 0, operations: [{ op: 'updateDraft', goal: 'x' }] },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(json<{ error: { code: string; details: unknown } }>(stale.body).error).toMatchObject({
+      code: 'VERSION_CONFLICT',
+      details: { currentRevision: 1 },
+    });
+  });
+});

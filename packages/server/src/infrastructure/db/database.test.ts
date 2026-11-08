@@ -40,7 +40,7 @@ describe('Database', () => {
   });
 
   it('applies migrations once and enables foreign keys', () => {
-    expect(db.schemaVersion).toBe(1);
+    expect(db.schemaVersion).toBe(2);
     expect(db.get('PRAGMA foreign_keys')?.['foreign_keys']).toBe(1);
     expect(() =>
       db.execute(

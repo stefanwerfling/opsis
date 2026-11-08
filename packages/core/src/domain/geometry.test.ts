@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_SCALE,
   MIN_SCALE,
+  clampRect,
   clampScale,
   fitViewport,
+  handlePoints,
+  moveRectWithin,
+  rectArea,
+  rectContains,
+  rectFromPoints,
+  resizeRect,
+  translateRect,
   imageToStage,
   panBy,
   stageToImage,
@@ -124,5 +132,81 @@ describe('fitViewport', () => {
       x: 0,
       y: 0,
     });
+  });
+});
+
+describe('rectangles', () => {
+  const image = { width: 1000, height: 800 };
+
+  it('clampRect snaps to pixels and keeps the rectangle inside the image', () => {
+    expect(clampRect({ x: 10.4, y: 10.6, width: 20.2, height: 5 }, image)).toEqual({
+      x: 10,
+      y: 11,
+      width: 21,
+      height: 5,
+    });
+    expect(clampRect({ x: -50, y: -50, width: 100, height: 100 }, image)).toEqual({
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+    });
+    expect(clampRect({ x: 990, y: 790, width: 100, height: 100 }, image)).toEqual({
+      x: 990,
+      y: 790,
+      width: 10,
+      height: 10,
+    });
+    // completely outside or degenerate → at least one pixel, inside
+    expect(clampRect({ x: 5000, y: 5000, width: 0, height: 0 }, image)).toEqual({
+      x: 999,
+      y: 799,
+      width: 1,
+      height: 1,
+    });
+  });
+
+  it('rectFromPoints works in every drag direction', () => {
+    const expected = { x: 10, y: 20, width: 30, height: 40 };
+    expect(rectFromPoints({ x: 10, y: 20 }, { x: 40, y: 60 })).toEqual(expected);
+    expect(rectFromPoints({ x: 40, y: 60 }, { x: 10, y: 20 })).toEqual(expected);
+    expect(rectFromPoints({ x: 40, y: 20 }, { x: 10, y: 60 })).toEqual(expected);
+  });
+
+  it('resizeRect moves only the dragged edges and flips instead of going negative', () => {
+    const rect = { x: 100, y: 100, width: 50, height: 40 };
+    expect(resizeRect(rect, 'se', 10, 5)).toEqual({ x: 100, y: 100, width: 60, height: 45 });
+    expect(resizeRect(rect, 'nw', 10, 5)).toEqual({ x: 110, y: 105, width: 40, height: 35 });
+    expect(resizeRect(rect, 'n', 99, 5)).toEqual({ x: 100, y: 105, width: 50, height: 35 });
+    expect(resizeRect(rect, 'e', -80, 0)).toEqual({ x: 70, y: 100, width: 30, height: 40 });
+  });
+
+  it('moveRectWithin keeps size and stays inside', () => {
+    const rect = { x: 900, y: 10, width: 80, height: 20 };
+    expect(moveRectWithin(rect, 50, -50, image)).toEqual({ x: 920, y: 0, width: 80, height: 20 });
+    expect(translateRect(rect, 50, -50)).toEqual({ x: 950, y: -40, width: 80, height: 20 });
+  });
+
+  it('hit testing and handles use the same coordinate space', () => {
+    const rect = { x: 10, y: 20, width: 30, height: 40 };
+    expect(rectContains(rect, { x: 10, y: 20 })).toBe(true);
+    expect(rectContains(rect, { x: 40, y: 60 })).toBe(true);
+    expect(rectContains(rect, { x: 41, y: 60 })).toBe(false);
+    expect(rectArea(rect)).toBe(1200);
+    expect(handlePoints(rect).se).toEqual({ x: 40, y: 60 });
+    expect(handlePoints(rect).n).toEqual({ x: 25, y: 20 });
+  });
+
+  it('a region keeps its image position at every zoom level', () => {
+    const region = { x: 200, y: 300, width: 50, height: 20 };
+    for (const viewport of [
+      { scale: 0.1, x: 5, y: 7 },
+      { scale: 3.3, x: -800, y: -1200 },
+    ]) {
+      const topLeft = imageToStage(viewport, region);
+      const back = stageToImage(viewport, topLeft);
+      expect(back.x).toBeCloseTo(region.x, 9);
+      expect(back.y).toBeCloseTo(region.y, 9);
+    }
   });
 });

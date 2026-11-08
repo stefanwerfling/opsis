@@ -1,5 +1,6 @@
 export * from './domain/actor.js';
 export * from './domain/common.js';
+export * from './domain/draft.js';
 export * from './domain/errors.js';
 export * from './domain/events.js';
 export * from './domain/geometry.js';
@@ -8,9 +9,11 @@ export * from './domain/project.js';
 export * from './domain/screenshot.js';
 export * from './domain/session.js';
 export * from './domain/ui-view.js';
+export * from './domain/vocabulary.js';
 
 export * from './application/access-policy.js';
 export * from './application/context.js';
+export * from './application/drafts.js';
 export * from './application/event-bus.js';
 export * from './application/ports.js';
 export * from './application/projects.js';

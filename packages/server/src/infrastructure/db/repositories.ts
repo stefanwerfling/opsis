@@ -1,5 +1,7 @@
 import {
+  COMPONENT_KINDS,
   DEVICE_CATEGORIES,
+  RELATION_KINDS,
   IMAGE_MIME_TYPES,
   OpsisError,
   PROMPT_LANGUAGES,
@@ -11,6 +13,12 @@ import {
   type AuditEntry,
   type AuditLog,
   type BlobRecord,
+  type ComponentSpec,
+  type Draft,
+  type DraftComponent,
+  type DraftRepository,
+  type Region,
+  type Relation,
   type Metadata,
   type Project,
   type ProjectRepository,
@@ -501,11 +509,163 @@ class SqliteAuditLog implements AuditLog {
   }
 }
 
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const stringList = (row: Row, column: string): string[] => {
+  const value = json(row, column);
+  if (!isStringArray(value)) throw new Error(`Column "${column}" is not a string list`);
+  return value;
+};
+
+const specOf = (row: Row): ComponentSpec => {
+  const value = json(row, 'spec');
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Column "spec" is not an object');
+  }
+  // Written only by this repository from validated drafts.
+  return value;
+};
+
+class SqliteDraftRepository implements DraftRepository {
+  constructor(private readonly db: Database) {}
+
+  find(sessionId: string): Draft | undefined {
+    const row = this.db.get('SELECT * FROM drafts WHERE session_id = :sessionId', { sessionId });
+    if (!row) return undefined;
+
+    const regions = new Map<string, Region[]>();
+    for (const region of this.db.all(
+      'SELECT * FROM draft_regions WHERE session_id = :sessionId ORDER BY component_id, screenshot_id',
+      { sessionId },
+    )) {
+      const list = regions.get(str(region, 'component_id')) ?? [];
+      list.push({
+        screenshotId: str(region, 'screenshot_id'),
+        x: num(region, 'x'),
+        y: num(region, 'y'),
+        width: num(region, 'width'),
+        height: num(region, 'height'),
+      });
+      regions.set(str(region, 'component_id'), list);
+    }
+
+    const rows = this.db.all('SELECT * FROM draft_components WHERE session_id = :sessionId', { sessionId });
+    const byParent = new Map<string | null, Row[]>();
+    for (const component of rows) {
+      const parentId = optStr(component, 'parent_id');
+      byParent.set(parentId, [...(byParent.get(parentId) ?? []), component]);
+    }
+    // Tree order: parents before children, siblings by sort_order (same as the domain).
+    const components: DraftComponent[] = [];
+    const visit = (parentId: string | null): void => {
+      const children = (byParent.get(parentId) ?? []).sort(
+        (a, b) => num(a, 'sort_order') - num(b, 'sort_order'),
+      );
+      for (const component of children) {
+        const componentId = str(component, 'component_id');
+        components.push({
+          componentId,
+          parentId,
+          order: num(component, 'sort_order'),
+          name: str(component, 'name'),
+          kind: oneOf(component, 'kind', COMPONENT_KINDS),
+          hidden: num(component, 'hidden') === 1,
+          spec: specOf(component),
+          regions: regions.get(componentId) ?? [],
+        });
+        visit(componentId);
+      }
+    };
+    visit(null);
+
+    const relations: Relation[] = this.db
+      .all('SELECT * FROM draft_relations WHERE session_id = :sessionId ORDER BY id', { sessionId })
+      .map((relation) => ({
+        id: str(relation, 'id'),
+        fromComponentId: str(relation, 'from_component_id'),
+        toComponentId: str(relation, 'to_component_id'),
+        kind: oneOf(relation, 'kind', RELATION_KINDS),
+        description: str(relation, 'description'),
+      }));
+
+    return {
+      sessionId,
+      revision: num(row, 'revision'),
+      goal: str(row, 'goal'),
+      changeSummary: str(row, 'change_summary'),
+      acceptance: stringList(row, 'acceptance'),
+      openQuestions: stringList(row, 'open_questions'),
+      components,
+      relations,
+      updatedAt: str(row, 'updated_at'),
+    };
+  }
+
+  save(draft: Draft): void {
+    const sessionId = draft.sessionId;
+    this.db.execute(
+      `INSERT INTO drafts (session_id, goal, change_summary, acceptance, open_questions, revision, updated_at)
+       VALUES (:sessionId, :goal, :changeSummary, :acceptance, :openQuestions, :revision, :updatedAt)
+       ON CONFLICT (session_id) DO UPDATE SET
+         goal = excluded.goal, change_summary = excluded.change_summary,
+         acceptance = excluded.acceptance, open_questions = excluded.open_questions,
+         revision = excluded.revision, updated_at = excluded.updated_at`,
+      {
+        sessionId,
+        goal: draft.goal,
+        changeSummary: draft.changeSummary,
+        acceptance: JSON.stringify(draft.acceptance),
+        openQuestions: JSON.stringify(draft.openQuestions),
+        revision: draft.revision,
+        updatedAt: draft.updatedAt,
+      },
+    );
+    // Replace the children. Components are inserted in tree order, so every parent exists
+    // before its children (self-referencing foreign key).
+    this.db.execute('DELETE FROM draft_relations WHERE session_id = :sessionId', { sessionId });
+    this.db.execute('DELETE FROM draft_regions WHERE session_id = :sessionId', { sessionId });
+    this.db.execute('DELETE FROM draft_components WHERE session_id = :sessionId', { sessionId });
+    for (const component of draft.components) {
+      this.db.execute(
+        `INSERT INTO draft_components (session_id, component_id, parent_id, sort_order, name, kind, hidden, spec, updated_at)
+         VALUES (:sessionId, :componentId, :parentId, :order, :name, :kind, :hidden, :spec, :updatedAt)`,
+        {
+          sessionId,
+          componentId: component.componentId,
+          parentId: component.parentId,
+          order: component.order,
+          name: component.name,
+          kind: component.kind,
+          hidden: component.hidden ? 1 : 0,
+          spec: JSON.stringify(component.spec),
+          updatedAt: draft.updatedAt,
+        },
+      );
+      for (const region of component.regions) {
+        this.db.execute(
+          `INSERT INTO draft_regions (session_id, component_id, screenshot_id, x, y, width, height)
+           VALUES (:sessionId, :componentId, :screenshotId, :x, :y, :width, :height)`,
+          { sessionId, componentId: component.componentId, ...region },
+        );
+      }
+    }
+    for (const relation of draft.relations) {
+      this.db.execute(
+        `INSERT INTO draft_relations (id, session_id, from_component_id, to_component_id, kind, description)
+         VALUES (:id, :sessionId, :fromComponentId, :toComponentId, :kind, :description)`,
+        { sessionId, ...relation },
+      );
+    }
+  }
+}
+
 export const createRepositories = (db: Database): Repositories => ({
   projects: new SqliteProjectRepository(db),
   uiViews: new SqliteUiViewRepository(db),
   screenshots: new SqliteScreenshotRepository(db),
   sessions: new SqliteSessionRepository(db),
+  drafts: new SqliteDraftRepository(db),
   grants: new SqliteGrantRepository(db),
   audit: new SqliteAuditLog(db),
 });

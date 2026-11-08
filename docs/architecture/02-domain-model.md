@@ -88,6 +88,30 @@ Konversations-ID des Agenten), `intent` (`create|revise`), `title`, `status`
 
 Gerichtete Verknüpfung zwischen zwei Komponenten derselben Session.
 
+### Draft-Operationen (Phase 2)
+
+Alle Änderungen am Draft laufen über **eine** reine Funktion
+`applyDraftOperations(draft, operations, context)` in `core/domain/draft.ts`. Server
+(maßgeblich) und Browser (optimistische Anzeige) verwenden denselben Code. Ein Batch ist
+atomar; ein Fehler nennt den Index der fehlgeschlagenen Operation.
+
+| Operation                   | Regeln                                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `addComponent`              | ID `cmp_…` vom Client (sofortige Anzeige), eindeutig; Eltern muss existieren; optional mit Region                                  |
+| `updateComponent`           | Name (nicht leer, max. 200), Typ, Sichtbarkeit                                                                                     |
+| `moveComponent`             | neuer Elternteil und Position; **Zyklusprüfung** (nicht in sich selbst oder Nachfahren)                                            |
+| `duplicateComponent`        | kopiert den Teilbaum mit Regionen und Spezifikation; `idMap` muss genau den Teilbaum abdecken. Relationen werden nicht mitkopiert. |
+| `deleteComponent`           | löscht den Teilbaum und alle Relationen, die ihn berühren                                                                          |
+| `setRegion`                 | je Screenshot höchstens eine Region; nur Screenshots der Session; auf ganze Pixel gerundet und ins Bild geclampt                   |
+| `setSpecValue`              | nur Gruppen/Felder aus `SPEC_GROUPS`; leerer Wert entfernt das Feld                                                                |
+| `add/update/deleteRelation` | zwei verschiedene, existierende Komponenten                                                                                        |
+| `updateDraft`               | Ziel, Änderungszusammenfassung, globale Akzeptanzkriterien, offene Fragen (Leerzeilen entfallen)                                   |
+
+Speichern: `POST /api/v1/sessions/:id/draft/operations { baseRevision, operations }`.
+`baseRevision` ≠ gespeicherte Revision → `409 VERSION_CONFLICT` (z. B. zweiter Browser-Tab).
+Nur ein Mensch bearbeitet den Draft. Die erste Änderung einer Session in
+`awaiting_review` startet die Prüfung (`→ in_progress`, Statusnotiz „first edit“).
+
 ### SpecRevision (unveränderlich)
 
 `id (spr_…)`, `uiViewId`, `sessionId`, `revisionNo` (je UiView fortlaufend), `snapshot`
@@ -126,19 +150,32 @@ entityType, entityId, action, data`.
 
 ## 3. Spezifikation einer Komponente und Herkunft von Angaben
 
-Die Inspektor-Bereiche aus der Anforderung werden zu festen Gruppen:
-`general`, `visual`, `functional`, `interaction`, `layout`, `acceptance`.
-Jede Gruppe enthält definierte Felder, z. B. `visual.colors` oder `interaction.hover`.
+Die Inspektor-Bereiche aus der Anforderung (Abschnitt 6) werden zu festen Gruppen mit
+genau den dort genannten Feldern (`core/domain/vocabulary.ts`, `SPEC_GROUPS`). „Name“ und
+„Typ“ der Gruppe „Allgemein“ sind die Komponentenfelder `name` und `kind`.
+
+| Gruppe        | Felder                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| `general`     | `description`, `purpose`, `responsibility`                                                                  |
+| `visual`      | `colors`, `sizes`, `spacing`, `positioning`, `typography`, `borders`, `shadows`, `responsive`               |
+| `functional`  | `task`, `inputData`, `outputData`, `dataSources`, `actions`, `dependencies`                                 |
+| `interaction` | `hover`, `click`, `focus`, `active`, `disabled`, `loading`, `error`, `success`, `keyboard`                  |
+| `layout`      | `positioning`, `flexGrid`, `scrolling`, `overflow`, `sizing`, `parentRelation`                              |
+| `acceptance`  | `expectedBehavior`, `expectedLayout`, `functionalRequirements`, `errorConditions`, `responsiveRequirements` |
 
 Jeder Feldwert ist ein **`SpecValue`**:
 
 ```ts
 type SpecValue = {
-  value: string | string[] | Record<string, string>; // Freitext oder strukturierte Liste
+  value: string; // Freitext (mehrzeilig). Leerer Wert = Feld entfernt = „nicht spezifiziert“.
   origin: 'user' | 'screenshot_derived' | 'auto_detected';
   note?: string;
 };
 ```
+
+(Umgesetzt in Phase 2 mit `value: string` statt der ursprünglich skizzierten Listen- und
+Map-Varianten: Alle Felder der Anforderung sind Beschreibungen. Strukturierte Werte können
+später ergänzt werden, ohne bestehende Daten zu brechen.)
 
 | Zustand                       | Darstellung                                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |

@@ -9,6 +9,8 @@ export const ID_PREFIXES = {
   screenshot: 'scr',
   session: 'ses',
   sessionEvent: 'sev',
+  component: 'cmp',
+  relation: 'rel',
   agent: 'agt',
   audit: 'aud',
 } as const;

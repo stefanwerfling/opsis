@@ -11,11 +11,13 @@ import {
   OpsisError,
   SESSION_STATUSES,
   cancelSession,
+  changeDraft,
   changeUiPath,
   confirmAssignment,
   createProject,
   createUiView,
   findUiView,
+  getDraft,
   getProject,
   getScreenshot,
   getSession,
@@ -138,6 +140,12 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
   });
   app.post('/api/v1/sessions/:id/confirm-assignment', (request) =>
     confirmAssignment(ctx, actor, params(IdParams, request).id, parseInput(ConfirmBody, request.body)),
+  );
+
+  // ── Drafts (editor) ───────────────────────────────────────────────────────
+  app.get('/api/v1/sessions/:id/draft', (request) => getDraft(ctx, actor, params(IdParams, request).id));
+  app.post('/api/v1/sessions/:id/draft/operations', (request) =>
+    changeDraft(ctx, actor, params(IdParams, request).id, request.body),
   );
 
   // ── Screenshots ───────────────────────────────────────────────────────────

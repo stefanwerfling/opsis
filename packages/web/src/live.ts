@@ -7,6 +7,7 @@ const EVENT_TYPES = [
   'ScreenshotSubmitted',
   'SessionChanged',
   'SessionStatusChanged',
+  'DraftChanged',
 ] as const satisfies readonly DomainEvent['type'][];
 
 type MissingEventType = Exclude<DomainEvent['type'], (typeof EVENT_TYPES)[number]>;

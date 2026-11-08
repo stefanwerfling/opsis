@@ -13,6 +13,12 @@ export type DomainEvent =
     }
   | { readonly type: 'SessionChanged'; readonly projectId: string; readonly sessionId: string }
   | {
+      readonly type: 'DraftChanged';
+      readonly projectId: string;
+      readonly sessionId: string;
+      readonly revision: number;
+    }
+  | {
       readonly type: 'SessionStatusChanged';
       readonly projectId: string;
       readonly sessionId: string;

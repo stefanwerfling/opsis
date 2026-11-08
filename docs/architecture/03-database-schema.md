@@ -132,7 +132,8 @@ CREATE TABLE drafts (
   acceptance         TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(acceptance)),
   open_questions     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(open_questions)),
   conflicts          TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(conflicts)),
-  updated_at         TEXT NOT NULL
+  updated_at         TEXT NOT NULL,
+  revision           INTEGER NOT NULL DEFAULT 0  -- Migration 002: optimistische Sperre
 );
 
 CREATE TABLE draft_components (

@@ -90,3 +90,90 @@ export const fitViewport = (image: Size, stage: Size, mode: FitMode, padding = 1
   const y = mode === 'width' ? padding : (stage.height - image.height * scale) / 2;
   return { scale, x, y };
 };
+
+// ── Rectangles in image pixels (component regions) ───────────────────────────
+
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Smallest region edge in image pixels. */
+export const MIN_REGION_SIZE = 1;
+
+/**
+ * Snaps a rectangle to whole image pixels and keeps it inside the image. Regions are
+ * stored in original screenshot pixels, so they stay valid at every zoom level.
+ */
+export const clampRect = (rect: Rect, image: Size): Rect => {
+  const left = Math.min(Math.max(0, Math.round(rect.x)), Math.max(0, image.width - MIN_REGION_SIZE));
+  const top = Math.min(Math.max(0, Math.round(rect.y)), Math.max(0, image.height - MIN_REGION_SIZE));
+  const right = Math.min(image.width, Math.max(left + MIN_REGION_SIZE, Math.round(rect.x + rect.width)));
+  const bottom = Math.min(image.height, Math.max(top + MIN_REGION_SIZE, Math.round(rect.y + rect.height)));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+/** Rectangle spanned by two points, in any drag direction. */
+export const rectFromPoints = (a: Point, b: Point): Rect => ({
+  x: Math.min(a.x, b.x),
+  y: Math.min(a.y, b.y),
+  width: Math.abs(b.x - a.x),
+  height: Math.abs(b.y - a.y),
+});
+
+export const rectContains = (rect: Rect, point: Point): boolean =>
+  point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+
+export const rectArea = (rect: Rect): number => rect.width * rect.height;
+
+export const translateRect = (rect: Rect, dx: number, dy: number): Rect => ({
+  ...rect,
+  x: rect.x + dx,
+  y: rect.y + dy,
+});
+
+/** Moves a rectangle by (dx, dy) but keeps it completely inside the image (size unchanged). */
+export const moveRectWithin = (rect: Rect, dx: number, dy: number, image: Size): Rect => ({
+  ...rect,
+  x: Math.min(Math.max(0, rect.x + dx), Math.max(0, image.width - rect.width)),
+  y: Math.min(Math.max(0, rect.y + dy), Math.max(0, image.height - rect.height)),
+});
+
+export const RESIZE_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
+export type ResizeHandle = (typeof RESIZE_HANDLES)[number];
+
+/**
+ * Resizes by dragging one handle by (dx, dy). Dragging past the opposite edge flips the
+ * rectangle instead of producing negative sizes.
+ */
+export const resizeRect = (rect: Rect, handle: ResizeHandle, dx: number, dy: number): Rect => {
+  let left = rect.x;
+  let top = rect.y;
+  let right = rect.x + rect.width;
+  let bottom = rect.y + rect.height;
+  if (handle.includes('w')) left += dx;
+  if (handle.includes('e')) right += dx;
+  if (handle.includes('n')) top += dy;
+  if (handle.includes('s')) bottom += dy;
+  return rectFromPoints({ x: left, y: top }, { x: right, y: bottom });
+};
+
+/** Handle positions of a rectangle (same coordinate space as the rectangle). */
+export const handlePoints = (rect: Rect): Record<ResizeHandle, Point> => {
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  return {
+    nw: { x: rect.x, y: rect.y },
+    n: { x: cx, y: rect.y },
+    ne: { x: right, y: rect.y },
+    e: { x: right, y: cy },
+    se: { x: right, y: bottom },
+    s: { x: cx, y: bottom },
+    sw: { x: rect.x, y: bottom },
+    w: { x: rect.x, y: cy },
+  };
+};
