@@ -12,6 +12,11 @@ import {
   SESSION_STATUSES,
   SPEC_FORMATS,
   cancelSession,
+  createAgent,
+  grantAgentProject,
+  listAgents,
+  revokeAgent,
+  revokeAgentProject,
   changeDraft,
   changeUiPath,
   compareUiVersions,
@@ -55,6 +60,7 @@ const actor = LOCAL_HUMAN;
 const ProjectParams = z.object({ projectId: z.string().min(1).max(64) });
 const UiParams = ProjectParams.extend({ uiId: z.string().min(1).max(100) });
 const IdParams = z.object({ id: z.string().min(1).max(64) });
+const GrantParams = IdParams.extend({ projectId: z.string().min(1).max(64) });
 const ComponentParams = UiParams.extend({ componentId: z.string().min(1).max(64) });
 const CompareParams = IdParams.extend({ otherId: z.string().min(1).max(64) });
 const ExportParams = IdParams.extend({ kind: z.string().min(1).max(32) });
@@ -103,6 +109,25 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
     const project = createProject(ctx, actor, parseInput(CreateProjectInputSchema, request.body));
     return reply.status(201).send(project);
   });
+  // ── Agents (04 §4) ────────────────────────────────────────────────────────
+  app.get('/api/v1/agents', () => ({ agents: listAgents(ctx, actor) }));
+  app.post('/api/v1/agents', (request, reply) =>
+    // The token is shown once: never cached.
+    reply
+      .status(201)
+      .header('cache-control', 'no-store')
+      .send(createAgent(ctx, actor, request.body)),
+  );
+  app.post('/api/v1/agents/:id/revoke', (request) => revokeAgent(ctx, actor, params(IdParams, request).id));
+  app.put('/api/v1/agents/:id/grants/:projectId', (request) => {
+    const { id, projectId } = params(GrantParams, request);
+    return grantAgentProject(ctx, actor, id, { projectId });
+  });
+  app.delete('/api/v1/agents/:id/grants/:projectId', (request) => {
+    const { id, projectId } = params(GrantParams, request);
+    return revokeAgentProject(ctx, actor, id, { projectId });
+  });
+
   app.get('/api/v1/projects/:projectId', (request) =>
     getProject(ctx, actor, params(ProjectParams, request).projectId),
   );

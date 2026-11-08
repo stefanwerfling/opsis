@@ -1,4 +1,6 @@
 import type {
+  AgentWithGrants,
+  CreatedAgent,
   ComponentHistoryEntry,
   CreateProjectInput,
   Draft,
@@ -83,6 +85,16 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
   };
 
   return {
+    listAgents: async () => (await request<{ agents: AgentWithGrants[] }>('GET', `${base}/agents`)).agents,
+    createAgent: (input: { name: string; projectIds: string[] }) =>
+      request<CreatedAgent>('POST', `${base}/agents`, input),
+    revokeAgent: (agentId: string) =>
+      request<AgentWithGrants>('POST', base + pathTo('agents', agentId, 'revoke')),
+    setAgentGrant: (agentId: string, projectId: string, granted: boolean) =>
+      request<AgentWithGrants>(
+        granted ? 'PUT' : 'DELETE',
+        base + pathTo('agents', agentId, 'grants', projectId),
+      ),
     listProjects: async () => (await request<{ projects: Project[] }>('GET', `${base}/projects`)).projects,
     getProject: (projectId: string) => request<Project>('GET', base + pathTo('projects', projectId)),
     createProject: (input: CreateProjectInput) => request<Project>('POST', `${base}/projects`, input),

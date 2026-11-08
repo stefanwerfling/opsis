@@ -43,7 +43,7 @@ const createUiViewForm = (projectId: string): HTMLFormElement => {
 export const projectView: View = (root, params) => {
   const projectId = params['projectId'] ?? '';
   const disposer = new Disposer();
-  const ofProject = (event: DomainEvent) => event.projectId === projectId;
+  const ofProject = (event: DomainEvent) => 'projectId' in event && event.projectId === projectId;
 
   const header = disposer.add(
     liveSection({

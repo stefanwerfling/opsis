@@ -3,6 +3,7 @@ import type { SessionStatus } from './session.js';
 /** Domain events, published after the surrounding transaction has committed. */
 export type DomainEvent =
   | { readonly type: 'ProjectChanged'; readonly projectId: string }
+  | { readonly type: 'AgentChanged'; readonly agentId: string }
   | { readonly type: 'UiViewChanged'; readonly projectId: string; readonly uiViewId: string }
   | {
       readonly type: 'ScreenshotSubmitted';

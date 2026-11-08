@@ -142,7 +142,7 @@ export const uiViewView: View = (root, params) => {
   const projectId = params['projectId'] ?? '';
   const uiId = params['uiId'] ?? '';
   const disposer = new Disposer();
-  const ofProject = (event: DomainEvent) => event.projectId === projectId;
+  const ofProject = (event: DomainEvent) => 'projectId' in event && event.projectId === projectId;
 
   const details = disposer.add(
     liveSection({

@@ -118,3 +118,19 @@ Solange `assignment = needs_confirmation` gilt, ist die Freigabe blockiert
   erraten werden können.
 - `list_projects` zeigt nur Projekte, für die ein Grant besteht.
 - Der menschliche Benutzer der lokalen Web-UI hat in v1 Vollzugriff (offene Entscheidung E1).
+- Umsetzung (Phase 5, Schritt 1):
+  - Token: `opsis_` + 32 Zufallsbytes (base64url) aus dem Web-Crypto-CSPRNG. Gespeichert
+    wird nur `sha256(token)`; auch Audit-Log und Listen enthalten das Token nie.
+  - CLI: `opsis agent create --name <name> [--project <id|slug>]…`, `list`, `revoke <id>`,
+    `grant|ungrant <id> <project>`. `create` gibt das Token einmal aus, zusammen mit einer
+    `.mcp.json`-Vorlage.
+  - Web-UI: Seite „Agenten“ (Kopfzeile). Anlegen mit Projektauswahl, Token-Anzeige einmalig,
+    Grants per Checkbox, Sperren mit Bestätigung durch zweiten Klick.
+  - REST (nur lokaler Mensch): `GET/POST /api/v1/agents`, `POST /agents/:id/revoke`,
+    `PUT|DELETE /agents/:id/grants/:projectId`. Agenten verwalten keine Agenten
+    (`FORBIDDEN_ACTOR`).
+  - Sperren ist endgültig; das Token wird sofort ungültig, die Historie behält den Agenten.
+    Ein gesperrter Agent erhält keine neuen Grants.
+  - `requireAgent` (HTTP) löst `Authorization: Bearer …` auf. Fehlender Header, anderes
+    Schema, unbekanntes oder gesperrtes Token ergeben einheitlich `401 UNAUTHENTICATED`
+    mit `WWW-Authenticate: Bearer`.

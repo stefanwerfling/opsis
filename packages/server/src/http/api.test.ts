@@ -381,3 +381,48 @@ describe('release API', () => {
     expect(json<{ versions: unknown[] }>(list.body).versions).toHaveLength(1);
   });
 });
+
+describe('agents API', () => {
+  it('creates an agent with a once-visible token, manages grants and revokes', async () => {
+    const project = json<{ id: string }>(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/projects',
+          headers: HOST,
+          payload: { name: 'Shop' },
+        })
+      ).body,
+    );
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/agents',
+      headers: HOST,
+      payload: { name: 'laptop' },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.headers['cache-control']).toBe('no-store');
+    const { agent, token } = json<{ agent: { id: string }; token: string }>(created.body);
+    expect(token).toMatch(/^opsis_/);
+
+    const grantUrl = `/api/v1/agents/${agent.id}/grants/${project.id}`;
+    const granted = await app.inject({ method: 'PUT', url: grantUrl, headers: HOST });
+    expect(json<{ projectIds: string[] }>(granted.body).projectIds).toEqual([project.id]);
+    const listed = await app.inject({ method: 'GET', url: '/api/v1/agents', headers: HOST });
+    expect(listed.body).not.toContain(token);
+    expect(json<{ agents: { projectIds: string[] }[] }>(listed.body).agents[0]?.projectIds).toEqual([
+      project.id,
+    ]);
+    const withdrawn = await app.inject({ method: 'DELETE', url: grantUrl, headers: HOST });
+    expect(json<{ projectIds: string[] }>(withdrawn.body).projectIds).toEqual([]);
+
+    const revoked = await app.inject({
+      method: 'POST',
+      url: `/api/v1/agents/${agent.id}/revoke`,
+      headers: HOST,
+    });
+    expect(json<{ revokedAt: string | null }>(revoked.body).revokedAt).not.toBeNull();
+    const regrant = await app.inject({ method: 'PUT', url: grantUrl, headers: HOST });
+    expect(regrant.statusCode).toBe(409);
+  });
+});

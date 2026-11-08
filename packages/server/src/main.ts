@@ -1,24 +1,17 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { AccessPolicy, EventBus, type AppContext } from '@opsis/core';
+import { pathToFileURL } from 'node:url';
+import { EventBus } from '@opsis/core';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { systemClock } from './infrastructure/clock.js';
-import { nodeHasher } from './infrastructure/hash.js';
+import { createAppContext } from './context.js';
 import { Database } from './infrastructure/db/database.js';
-import { createRepositories } from './infrastructure/db/repositories.js';
-import { FileBlobStore } from './infrastructure/files/blob-store.js';
-import { SharpImageAnnotator } from './infrastructure/files/annotator.js';
-import { ZipArchiveCodec } from './infrastructure/files/archive.js';
-import { PixelmatchImageDiffer } from './infrastructure/files/differ.js';
-import { SharpImageInspector } from './infrastructure/files/image-inspector.js';
 
 /** Composition root: wires infrastructure into the application context and starts the server. */
-const main = async (): Promise<void> => {
+export const startServer = async (): Promise<void> => {
   const config = loadConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = Database.open(join(config.dataDir, 'opsis.db'));
-  const repos = createRepositories(db);
 
   // The logger only exists once the app is built; until then listener errors go to stderr.
   let reportListenerError = (error: unknown, eventType: string): void => {
@@ -27,20 +20,7 @@ const main = async (): Promise<void> => {
   const bus = new EventBus((error, event) => {
     reportListenerError(error, event.type);
   });
-
-  const ctx: AppContext = {
-    repos,
-    tx: db,
-    clock: systemClock,
-    events: bus,
-    access: new AccessPolicy(repos.grants),
-    images: new SharpImageInspector(),
-    annotator: new SharpImageAnnotator(),
-    differ: new PixelmatchImageDiffer(),
-    archives: new ZipArchiveCodec(),
-    blobs: new FileBlobStore(join(config.dataDir, 'blobs')),
-    hash: nodeHasher,
-  };
+  const ctx = createAppContext(db, config.dataDir, bus);
 
   const app = await buildApp({
     ctx,
@@ -68,4 +48,7 @@ const main = async (): Promise<void> => {
   await app.listen({ host: config.host, port: config.port });
 };
 
-await main();
+// `node dist/main.js` starts the server directly; the CLI imports `startServer`.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await startServer();
+}

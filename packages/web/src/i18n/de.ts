@@ -29,6 +29,23 @@ export const de: Messages = {
     'Sprache des erzeugten Implementierungsprompts. Texte der Benutzer werden nie übersetzt.',
   'projects.created': 'Angelegt {date}',
 
+  'agents.title': 'Agenten',
+  'agents.intro':
+    'Agenten (z. B. Claude Code) verbinden sich per MCP mit einem Bearer-Token und sehen nur die hier freigegebenen Projekte.',
+  'agents.empty': 'Noch keine Agenten.',
+  'agents.new': 'Neuer Agent',
+  'agents.name': 'Name',
+  'agents.nameHint': 'z. B. der Rechner oder das Werkzeug, auf dem der Agent läuft',
+  'agents.projects': 'Projekte',
+  'agents.noProjects': 'Noch keine Projekte.',
+  'agents.revoke': 'Sperren',
+  'agents.revokeConfirm': 'Wirklich sperren? Nicht umkehrbar',
+  'agents.revokedAt': 'Gesperrt {date}',
+  'agents.tokenTitle': 'Token für {name}',
+  'agents.tokenOnce':
+    'Dieses Token wird nur einmal angezeigt. Jetzt sichern (z. B. als OPSIS_TOKEN); gespeichert wird nur sein Hash.',
+  'agents.configHint':
+    'Konfiguration für Claude Code (.mcp.json), das Token liegt in der Umgebungsvariable OPSIS_TOKEN:',
   'project.uiViews': 'UI-Ansichten',
   'project.uiViewsEmpty':
     'Noch keine UI-Ansichten. Sie entstehen automatisch beim Einreichen von Screenshots.',

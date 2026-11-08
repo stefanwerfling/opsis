@@ -1,4 +1,5 @@
 import type { Actor } from '../domain/actor.js';
+import type { Agent } from '../domain/agent.js';
 import type { Timestamp } from '../domain/common.js';
 import type { Draft } from '../domain/draft.js';
 import type { DomainEvent } from '../domain/events.js';
@@ -112,6 +113,15 @@ export interface AgentGrantRepository {
   listProjectIds(agentId: string): string[];
   hasGrant(agentId: string, projectId: string): boolean;
   grant(agentId: string, projectId: string, at: Timestamp): void;
+  revoke(agentId: string, projectId: string): boolean;
+}
+
+export interface AgentRepository {
+  insert(agent: Agent, tokenHash: string): void;
+  findById(id: string): Agent | undefined;
+  findByTokenHash(tokenHash: string): Agent | undefined;
+  list(): Agent[];
+  revoke(id: string, at: Timestamp): void;
 }
 
 export interface AuditEntry {
@@ -136,6 +146,7 @@ export interface Repositories {
   readonly sessions: SessionRepository;
   readonly drafts: DraftRepository;
   readonly versions: VersionRepository;
+  readonly agents: AgentRepository;
   readonly grants: AgentGrantRepository;
   readonly audit: AuditLog;
 }

@@ -11,6 +11,7 @@ import {
 import { connectLiveEvents, onLiveStatus } from './live.js';
 import { installLinkInterception, matchRoute, onRouteChange } from './router.js';
 import type { View } from './ui.js';
+import { agentsView } from './views/agents.js';
 import { projectView } from './views/project.js';
 import { historyView } from './views/history.js';
 import { projectsView } from './views/projects.js';
@@ -20,6 +21,7 @@ import { versionView } from './views/version.js';
 
 const ROUTES: readonly (readonly [pattern: string, view: View])[] = [
   ['/', projectsView],
+  ['/agents', agentsView],
   ['/projects/:projectId', projectView],
   ['/projects/:projectId/ui/:uiId', uiViewView],
   ['/projects/:projectId/ui/:uiId/history', historyView],
@@ -45,6 +47,7 @@ const createHeader = (): HTMLElement => {
   const live = h('span', { class: 'live-dot', attrs: { role: 'status' } });
   let connected = false;
   const brand = h('a', { class: 'brand', attrs: { href: '/' } });
+  const agents = h('a', { attrs: { href: '/agents' } });
   const languageSelect = h(
     'select',
     {
@@ -57,6 +60,7 @@ const createHeader = (): HTMLElement => {
   );
   const refresh = (): void => {
     brand.textContent = t('app.title');
+    agents.textContent = t('agents.title');
     languageSelect.value = getLanguage();
     languageSelect.setAttribute('aria-label', t('app.language'));
     live.classList.toggle('connected', connected);
@@ -69,7 +73,12 @@ const createHeader = (): HTMLElement => {
   });
   onLanguageChange(refresh);
   refresh();
-  return h('header', { class: 'app-header' }, brand, h('div', { class: 'row' }, live, languageSelect));
+  return h(
+    'header',
+    { class: 'app-header' },
+    brand,
+    h('div', { class: 'row' }, agents, live, languageSelect),
+  );
 };
 
 const start = (): void => {

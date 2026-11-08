@@ -9,7 +9,9 @@ import {
   SESSION_ASSIGNMENTS,
   SESSION_INTENTS,
   SESSION_STATUSES,
+  type Agent,
   type AgentGrantRepository,
+  type AgentRepository,
   type AuditEntry,
   type AuditLog,
   type BlobRecord,
@@ -494,6 +496,57 @@ class SqliteGrantRepository implements AgentGrantRepository {
       { agentId, projectId, at },
     );
   }
+
+  revoke(agentId: string, projectId: string): boolean {
+    return (
+      this.db.execute('DELETE FROM agent_grants WHERE agent_id = :agentId AND project_id = :projectId', {
+        agentId,
+        projectId,
+      }) > 0
+    );
+  }
+}
+
+const toAgent = (row: Row): Agent => ({
+  id: str(row, 'id'),
+  name: str(row, 'name'),
+  createdAt: str(row, 'created_at'),
+  revokedAt: optStr(row, 'revoked_at'),
+});
+
+class SqliteAgentRepository implements AgentRepository {
+  constructor(private readonly db: Database) {}
+
+  insert(agent: Agent, tokenHash: string): void {
+    this.db.execute(
+      `INSERT INTO agents (id, name, token_hash, created_at, revoked_at)
+       VALUES (:id, :name, :tokenHash, :createdAt, :revokedAt)`,
+      { id: agent.id, name: agent.name, tokenHash, createdAt: agent.createdAt, revokedAt: agent.revokedAt },
+    );
+  }
+
+  findById(id: string): Agent | undefined {
+    const row = this.db.get('SELECT id, name, created_at, revoked_at FROM agents WHERE id = :id', { id });
+    return row && toAgent(row);
+  }
+
+  findByTokenHash(tokenHash: string): Agent | undefined {
+    const row = this.db.get(
+      'SELECT id, name, created_at, revoked_at FROM agents WHERE token_hash = :tokenHash',
+      { tokenHash },
+    );
+    return row && toAgent(row);
+  }
+
+  list(): Agent[] {
+    return this.db
+      .all('SELECT id, name, created_at, revoked_at FROM agents ORDER BY created_at, id')
+      .map(toAgent);
+  }
+
+  revoke(id: string, at: string): void {
+    this.db.execute('UPDATE agents SET revoked_at = :at WHERE id = :id AND revoked_at IS NULL', { id, at });
+  }
 }
 
 class SqliteAuditLog implements AuditLog {
@@ -685,6 +738,7 @@ export const createRepositories = (db: Database): Repositories => ({
   sessions: new SqliteSessionRepository(db),
   drafts: new SqliteDraftRepository(db),
   versions: new SqliteVersionRepository(db),
+  agents: new SqliteAgentRepository(db),
   grants: new SqliteGrantRepository(db),
   audit: new SqliteAuditLog(db),
 });

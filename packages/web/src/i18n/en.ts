@@ -27,6 +27,23 @@ export const en = {
     'Language of the generated implementation prompt. User texts are never translated.',
   'projects.created': 'Created {date}',
 
+  'agents.title': 'Agents',
+  'agents.intro':
+    'Agents (e.g. Claude Code) connect via MCP with a bearer token and only see the projects granted here.',
+  'agents.empty': 'No agents yet.',
+  'agents.new': 'New agent',
+  'agents.name': 'Name',
+  'agents.nameHint': 'e.g. the machine or tool the agent runs on',
+  'agents.projects': 'Projects',
+  'agents.noProjects': 'No projects yet.',
+  'agents.revoke': 'Revoke',
+  'agents.revokeConfirm': 'Really revoke? Cannot be undone',
+  'agents.revokedAt': 'Revoked {date}',
+  'agents.tokenTitle': 'Token for {name}',
+  'agents.tokenOnce':
+    'This token is shown only once. Store it now (e.g. as OPSIS_TOKEN); only its hash is kept.',
+  'agents.configHint':
+    'Configuration for Claude Code (.mcp.json), with the token in the OPSIS_TOKEN environment variable:',
   'project.uiViews': 'UI views',
   'project.uiViewsEmpty': 'No UI views yet. They are created automatically by screenshot submissions.',
   'project.sessions': 'Sessions',

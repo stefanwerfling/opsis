@@ -3,6 +3,7 @@ import type { DomainEvent } from '@opsis/core';
 /** Every domain event type the server streams; the compiler checks this against `DomainEvent`. */
 const EVENT_TYPES = [
   'ProjectChanged',
+  'AgentChanged',
   'UiViewChanged',
   'ScreenshotSubmitted',
   'SessionChanged',
@@ -33,7 +34,7 @@ const parseEvent = (data: unknown): DomainEvent | null => {
   if (typeof data !== 'string') return null;
   try {
     const value: unknown = JSON.parse(data);
-    if (typeof value === 'object' && value !== null && 'type' in value && 'projectId' in value) {
+    if (typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string') {
       return value as DomainEvent;
     }
   } catch {

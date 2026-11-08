@@ -1,4 +1,5 @@
 export * from './domain/actor.js';
+export * from './domain/agent.js';
 export * from './domain/common.js';
 export * from './domain/completeness.js';
 export * from './domain/diff.js';
@@ -17,6 +18,7 @@ export * from './domain/version.js';
 export * from './domain/vocabulary.js';
 
 export * from './application/access-policy.js';
+export * from './application/agents.js';
 export * from './application/context.js';
 export * from './application/drafts.js';
 export * from './application/exports.js';

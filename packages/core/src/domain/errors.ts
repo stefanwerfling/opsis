@@ -4,6 +4,8 @@
  */
 export const ERROR_CODES = [
   'VALIDATION',
+  /** Missing, malformed or revoked agent token. */
+  'UNAUTHENTICATED',
   'NOT_FOUND',
   'CONFLICT',
   'VERSION_CONFLICT',

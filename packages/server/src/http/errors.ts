@@ -3,6 +3,7 @@ import { isOpsisError, type ErrorCode } from '@opsis/core';
 
 export const HTTP_STATUS: Readonly<Record<ErrorCode, number>> = {
   VALIDATION: 400,
+  UNAUTHENTICATED: 401,
   FORBIDDEN_ACTOR: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
@@ -32,6 +33,7 @@ export const errorHandler = (
         ...(error.details ? { details: error.details } : {}),
       },
     };
+    if (error.code === 'UNAUTHENTICATED') void reply.header('www-authenticate', 'Bearer');
     void reply.status(HTTP_STATUS[error.code]).send(body);
     return;
   }

@@ -1123,3 +1123,30 @@ dl.before-after dd {
 .version-view .framed {
   max-width: 900px;
 }
+
+/* ── Agents ─────────────────────────────────────────────────────────────── */
+.token-panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--gap);
+}
+
+.token-panel .token {
+  word-break: break-all;
+  user-select: all;
+}
+
+.token-panel .config {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.card.agent.revoked {
+  opacity: 0.65;
+}
+
+.card.agent fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
