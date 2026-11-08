@@ -194,7 +194,21 @@ export const uiViewView: View = (root, params) => {
         'div',
         { class: 'stack' },
         details.element,
-        h('section', {}, h('h2', {}, t('ui.versions')), versions.element),
+        h(
+          'section',
+          {},
+          h(
+            'div',
+            { class: 'row section-head' },
+            h('h2', {}, t('ui.versions')),
+            h(
+              'a',
+              { attrs: { href: pathTo('projects', projectId, 'ui', uiId, 'history') } },
+              t('history.open'),
+            ),
+          ),
+          versions.element,
+        ),
         h('section', {}, h('h2', {}, t('project.sessions')), sessions.element),
       ),
       h(

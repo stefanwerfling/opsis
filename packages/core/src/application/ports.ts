@@ -170,6 +170,24 @@ export interface ImageAnnotator {
   annotate(bytes: Uint8Array, annotation: Annotation): Promise<Uint8Array>;
 }
 
+export interface PixelDiffResult {
+  /** Size of the mask (a's size, reduced for very large screenshots). */
+  readonly width: number;
+  readonly height: number;
+  readonly differentPixels: number;
+  /** b had other dimensions and was scaled to a's size for the comparison. */
+  readonly resized: boolean;
+  readonly aspectRatioA: number;
+  readonly aspectRatioB: number;
+  /** PNG: a faded, detected differences highlighted. */
+  readonly png: Uint8Array;
+}
+
+/** Pixel comparison of two screenshots ("detected pixel differences", architecture 05 §4). */
+export interface ImageDiffer {
+  diff(a: Uint8Array, b: Uint8Array): Promise<PixelDiffResult>;
+}
+
 /** Content-addressed binary storage. Writes are atomic and happen before the DB commit. */
 export interface BlobStore {
   put(bytes: Uint8Array, mimeType: ImageMimeType): Promise<BlobRecord>;

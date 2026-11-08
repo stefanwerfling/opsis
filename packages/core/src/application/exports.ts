@@ -11,6 +11,7 @@ import { buildAnnotation } from '../domain/specification/annotation.js';
 import { renderSpecificationMarkdown } from '../domain/specification/markdown.js';
 import { buildSpecificationDocument, type SnapshotScreenshot } from '../domain/specification/snapshot.js';
 import { parseInput, type AppContext } from './context.js';
+import type { PixelDiffResult } from './ports.js';
 import { getUiVersion, type ReleasedVersion } from './versions.js';
 
 export const EXPORT_FORMAT = 'opsis-export/v1';
@@ -134,4 +135,42 @@ export const exportVersion = async (
       };
     }
   }
+};
+
+export const PixelDiffInputSchema = z.strictObject({
+  /** Screenshots to compare; default: the primary screenshot of each version. */
+  screenshotA: z.string().min(1).max(64).optional(),
+  screenshotB: z.string().min(1).max(64).optional(),
+});
+
+export interface PixelDiff extends Omit<PixelDiffResult, 'png'> {
+  readonly screenshotA: string;
+  readonly screenshotB: string;
+  readonly png: Uint8Array;
+}
+
+/**
+ * Detected pixel differences between screenshots of two versions of the same UI. Only a
+ * finding: OPSIS does not judge whether a difference is intended.
+ */
+export const pixelDiff = async (
+  ctx: AppContext,
+  actor: Actor,
+  versionIdA: string,
+  versionIdB: string,
+  raw: unknown,
+): Promise<PixelDiff> => {
+  const input = parseInput(PixelDiffInputSchema, raw);
+  const a = getUiVersion(ctx, actor, versionIdA);
+  const b = getUiVersion(ctx, actor, versionIdB);
+  if (a.uiVersion.uiViewId !== b.uiVersion.uiViewId) {
+    throw new OpsisError('VALIDATION', 'Only versions of the same UI can be compared');
+  }
+  const screenshotA = pickScreenshot(a, input.screenshotA);
+  const screenshotB = pickScreenshot(b, input.screenshotB);
+  const result = await ctx.differ.diff(
+    await ctx.blobs.read(screenshotA.sha256),
+    await ctx.blobs.read(screenshotB.sha256),
+  );
+  return { ...result, screenshotA: screenshotA.id, screenshotB: screenshotB.id };
 };

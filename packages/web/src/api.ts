@@ -151,6 +151,25 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
           promptVersion: Omit<ReleasedVersion['promptVersion'], 'markdown'>;
         }
       >('GET', base + pathTo('versions', versionId)),
+    /** Detected pixel differences (PNG mask); the figures come from the response headers. */
+    pixelDiff: async (versionIdA: string, versionIdB: string) => {
+      const response = await fetchImpl(base + pathTo('versions', versionIdA, 'pixel-diff', versionIdB), {
+        method: 'GET',
+      });
+      if (!response.ok) throw await toApiError(response);
+      const header = (name: string): string => response.headers.get(name) ?? '';
+      const [width = 0, height = 0] = header('x-opsis-compared-size').split('x').map(Number);
+      const [aspectRatioA = 0, aspectRatioB = 0] = header('x-opsis-aspect-ratios').split(',').map(Number);
+      return {
+        blob: await response.blob(),
+        differentPixels: Number(header('x-opsis-different-pixels')),
+        width,
+        height,
+        resized: header('x-opsis-resized') === 'true',
+        aspectRatioA,
+        aspectRatioB,
+      };
+    },
     getPrompt: (versionId: string) => requestText(base + pathTo('versions', versionId, 'prompt')),
     getSpecificationMarkdown: (versionId: string) =>
       requestText(base + pathTo('versions', versionId, 'specification') + '?format=markdown'),
@@ -182,5 +201,6 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
 };
 
 export type Api = ReturnType<typeof createApi>;
+export type VersionDetails = Awaited<ReturnType<Api['getVersion']>>;
 
 export const api: Api = createApi();

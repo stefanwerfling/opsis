@@ -111,6 +111,18 @@ folgt weiterhin, der Prompt bleibt eigenständig.
 - Das Ergebnis heißt ausdrücklich „erkannte Pixelunterschiede“. OPSIS markiert nichts als
   „beabsichtigt“ oder „Fehler“, die Bewertung liegt beim Menschen.
 
+Umsetzung (Phase 4): Die Ansicht `/projects/:pid/ui/:uiId/history` zeigt die Zeitleiste,
+zwei Versionsauswahlen (Standard: neueste Version und Vorgänger), die Modi Überlagerung
+(Deckkraft), Wischen (Trennlinie), Seite an Seite (jeweils mit Komponentenrahmen als SVG,
+A gestrichelt, B durchgezogen; B in der Breite von A) und Pixelunterschiede. Darunter
+stehen die Komponentenänderungen feldgenau mit dem Verlauf jeder Komponente. Die
+Pixeldifferenz liefert `GET /api/v1/versions/:a/pixel-diff/:b` als PNG; die Kennzahlen
+stehen in `x-opsis-*`-Headern. Sehr große Screenshots werden vorher auf höchstens 12 MPx
+verkleinert. Verglichen werden die primären Screenshots, optional andere über
+`?screenshotA=`/`?screenshotB=`. Die Versionsseite rekonstruiert den Stand nur lesend
+(primärer Screenshot mit den freigegebenen Rahmen); „Als Basis für neue Session verwenden“
+ist noch nicht umgesetzt.
+
 ## 5. Komponentenhistorie
 
 `SELECT … FROM spec_revision_components JOIN spec_revisions … WHERE component_id = ?`

@@ -10,6 +10,7 @@ import type {
   EventPublisher,
   Hasher,
   ImageAnnotator,
+  ImageDiffer,
   ImageInspector,
   Repositories,
   Transactor,
@@ -24,6 +25,7 @@ export interface AppContext {
   readonly access: AccessPolicy;
   readonly images: ImageInspector;
   readonly annotator: ImageAnnotator;
+  readonly differ: ImageDiffer;
   readonly blobs: BlobStore;
   readonly hash: Hasher;
 }

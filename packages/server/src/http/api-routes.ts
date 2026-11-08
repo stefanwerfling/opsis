@@ -35,6 +35,7 @@ import {
   listUiViews,
   listUiVersions,
   parseInput,
+  pixelDiff,
   readScreenshotImage,
   releaseSpecification,
   rebaseSession,
@@ -181,6 +182,20 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
     return {
       history: componentHistory(ctx, actor, findUiView(ctx, actor, projectId, uiId).id, componentId),
     };
+  });
+  app.get('/api/v1/versions/:id/pixel-diff/:otherId', async (request, reply) => {
+    const { id, otherId } = params(CompareParams, request);
+    const result = await pixelDiff(ctx, actor, id, otherId, request.query);
+    // The mask is the body; the figures travel in headers so one request suffices.
+    return reply
+      .header('content-type', 'image/png')
+      .header('cache-control', 'private, max-age=3600')
+      .header('x-opsis-different-pixels', String(result.differentPixels))
+      .header('x-opsis-compared-size', `${String(result.width)}x${String(result.height)}`)
+      .header('x-opsis-resized', String(result.resized))
+      .header('x-opsis-aspect-ratios', `${result.aspectRatioA.toFixed(4)},${result.aspectRatioB.toFixed(4)}`)
+      .header('x-opsis-screenshots', `${result.screenshotA},${result.screenshotB}`)
+      .send(Buffer.from(result.png));
   });
   app.get('/api/v1/versions/:id/compare/:otherId', (request) => {
     const { id, otherId } = params(CompareParams, request);

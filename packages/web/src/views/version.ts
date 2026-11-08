@@ -1,4 +1,7 @@
+import type { SpecSnapshot } from '@opsis/core';
+import { buildAnnotation } from '@opsis/core/browser';
 import { api } from '../api.js';
+import { framedImage } from '../components/compare-stage.js';
 import { h, replaceChildren } from '../dom.js';
 import { t } from '../i18n/i18n.js';
 import { pathTo } from '../router.js';
@@ -15,6 +18,28 @@ const TAB_LABELS = {
 /** The server names the file (Content-Disposition); `download` keeps the SPA router out. */
 const download = (href: string, label: string) =>
   h('a', { class: 'button', attrs: { href, download: '' } }, label);
+
+/** Read-only reconstruction: the primary screenshot with the released component frames. */
+const reconstruction = (snapshot: SpecSnapshot) => {
+  const primary = snapshot.screenshots.find((screenshot) => screenshot.id === snapshot.primaryScreenshotId);
+  return (
+    primary &&
+    h(
+      'details',
+      { class: 'version-view' },
+      h('summary', {}, t('version.view')),
+      framedImage(
+        {
+          url: api.screenshotImageUrl(primary.id),
+          width: primary.width,
+          height: primary.height,
+          annotation: buildAnnotation(snapshot, primary.id),
+        },
+        true,
+      ),
+    )
+  );
+};
 
 /** A released UI version (read-only): prompt, readable specification and JSON. */
 export const versionView: View = (root, params) => {
@@ -156,6 +181,7 @@ export const versionView: View = (root, params) => {
             ),
           ]),
         ),
+        reconstruction(snapshot),
       ],
     }),
   );

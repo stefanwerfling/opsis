@@ -9,6 +9,7 @@ import { Database } from './infrastructure/db/database.js';
 import { createRepositories } from './infrastructure/db/repositories.js';
 import { FileBlobStore } from './infrastructure/files/blob-store.js';
 import { SharpImageAnnotator } from './infrastructure/files/annotator.js';
+import { PixelmatchImageDiffer } from './infrastructure/files/differ.js';
 import { SharpImageInspector } from './infrastructure/files/image-inspector.js';
 
 /** Composition root: wires infrastructure into the application context and starts the server. */
@@ -34,6 +35,7 @@ const main = async (): Promise<void> => {
     access: new AccessPolicy(repos.grants),
     images: new SharpImageInspector(),
     annotator: new SharpImageAnnotator(),
+    differ: new PixelmatchImageDiffer(),
     blobs: new FileBlobStore(join(config.dataDir, 'blobs')),
     hash: nodeHasher,
   };

@@ -11,6 +11,7 @@ import {
   getSession,
   getSpecification,
   newId,
+  pixelDiff,
   releaseSpecification,
   submitScreenshot,
   type Actor,
@@ -166,6 +167,59 @@ describe('exportVersion', () => {
     );
     expect(
       (await exportError(exportVersion(env.ctx, LOCAL_HUMAN, 'uvr_missing', { kind: 'json' }))).code,
+    ).toBe('NOT_FOUND');
+  });
+});
+
+describe('pixelDiff', () => {
+  it('reports detected pixel differences and scales a differently sized screenshot', async () => {
+    const v1 = await releasedVersion();
+    const same = await pixelDiff(env.ctx, LOCAL_HUMAN, v1.versionId, v1.versionId, {});
+    expect(same).toMatchObject({ differentPixels: 0, resized: false, width: 1200, height: 900 });
+    expect((await sharp(same.png).metadata()).format).toBe('png');
+
+    // V2: another colour and size; the inherited regions are moved onto the new screenshot.
+    const projectId = env.ctx.repos.sessions.findById(v1.sessionId)?.projectId ?? '';
+    const submitted = await submitScreenshot(
+      env.ctx,
+      agent,
+      { projectId, source: 'mcp', uiId: 'ui-dashboard', metadata: {} },
+      await makeImage('png', 600, 450, 3),
+    );
+    const next = submitted.screenshot.id;
+    changeDraft(env.ctx, LOCAL_HUMAN, submitted.session.id, {
+      baseRevision: 0,
+      operations: [header, logo].flatMap((componentId): DraftOperation[] => [
+        { op: 'setRegion', componentId, screenshotId: next, rect: { x: 10, y: 10, width: 50, height: 30 } },
+        { op: 'setRegion', componentId, screenshotId: v1.screenshotId, rect: null },
+      ]),
+    });
+    const v2 = releaseSpecification(env.ctx, LOCAL_HUMAN, submitted.session.id, {
+      rowVersion: getSession(env.ctx, LOCAL_HUMAN, submitted.session.id).session.rowVersion,
+      acknowledgedWarnings: [
+        `missing_description:${header}`,
+        `missing_acceptance:${header}`,
+        `missing_description:${logo}`,
+        `missing_acceptance:${logo}`,
+      ],
+    });
+
+    const diff = await pixelDiff(env.ctx, LOCAL_HUMAN, v1.versionId, v2.uiVersion.id, {});
+    expect(diff).toMatchObject({
+      width: 1200,
+      height: 900,
+      differentPixels: 1200 * 900,
+      resized: true,
+      screenshotA: v1.screenshotId,
+      screenshotB: next,
+    });
+    expect(diff.aspectRatioA).toBeCloseTo(diff.aspectRatioB);
+    expect(
+      (
+        await exportError(
+          pixelDiff(env.ctx, LOCAL_HUMAN, v1.versionId, v2.uiVersion.id, { screenshotA: next }),
+        )
+      ).code,
     ).toBe('NOT_FOUND');
   });
 });

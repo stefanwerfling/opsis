@@ -12,6 +12,7 @@ import { connectLiveEvents, onLiveStatus } from './live.js';
 import { installLinkInterception, matchRoute, onRouteChange } from './router.js';
 import type { View } from './ui.js';
 import { projectView } from './views/project.js';
+import { historyView } from './views/history.js';
 import { projectsView } from './views/projects.js';
 import { sessionView } from './views/session.js';
 import { uiViewView } from './views/ui-view.js';
@@ -21,6 +22,7 @@ const ROUTES: readonly (readonly [pattern: string, view: View])[] = [
   ['/', projectsView],
   ['/projects/:projectId', projectView],
   ['/projects/:projectId/ui/:uiId', uiViewView],
+  ['/projects/:projectId/ui/:uiId/history', historyView],
   ['/sessions/:sessionId', sessionView],
   ['/versions/:versionId', versionView],
 ];
