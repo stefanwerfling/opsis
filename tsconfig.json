@@ -13,6 +13,7 @@
     "packages/core/src",
     "packages/server/src",
     "*.ts",
+    "e2e",
     "packages/core/*.ts",
     "packages/server/*.ts",
     "packages/web/*.ts"

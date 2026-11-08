@@ -91,6 +91,14 @@ Performance-Messungen (Screenshots mit 8000 px Höhe, Bäume mit 1000 Komponente
 Canvas-Virtualisierung der Overlays bei Bedarf), Security-Review, Dokumentation
 (`docs/mcp.md`, Betrieb, Agent-Integrationsbeispiel/Skill), Docker-Image (optional).
 
+Umsetzung (Phase 6, Schritt 1): `npm run e2e` baut alles und startet den Server mit einem
+frischen Datenverzeichnis. Der Test `e2e/agent-flow.spec.ts` deckt den Kernablauf ab: Ein
+MCP-Client reicht ein, im Browser werden Review gestartet, eine Komponente gezeichnet und
+benannt und die Spezifikation freigegeben; danach erhält der Agent den Prompt, und die
+Session steht auf `delivered`. Standardbrowser ist das installierte Chrome
+(`OPSIS_E2E_CHANNEL`, leer = Playwright-Chromium). Der Test gehört nicht zu `npm run check`,
+weil er einen Browser braucht.
+
 ## Teststrategie (Kurzfassung)
 
 | Ebene       | Werkzeug                                        | Schwerpunkt                                                                          |

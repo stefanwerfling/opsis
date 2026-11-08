@@ -5,3 +5,5 @@ coverage/
 data/
 .env
 .idea/workspace.xml
+test-results/
+playwright-report/

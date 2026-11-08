@@ -2,7 +2,7 @@
   "name": "opsis",
   "version": "0.1.0",
   "private": true,
-  "description": "OPSIS – visual UI specification system with MCP interface",
+  "description": "OPSIS \u2013 visual UI specification system with MCP interface",
   "license": "MIT",
   "type": "module",
   "workspaces": [
@@ -20,7 +20,8 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "start": "node packages/server/dist/main.js",
-    "dev:web": "npm run dev -w @opsis/web"
+    "dev:web": "npm run dev -w @opsis/web",
+    "e2e": "npm run build && playwright test"
   },
   "repository": {
     "type": "git",
@@ -32,6 +33,7 @@
   "homepage": "https://github.com/stefanwerfling/opsis#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^24.19.2",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
