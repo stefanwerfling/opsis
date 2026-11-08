@@ -117,6 +117,25 @@ wait_for_specification(session_id, timeout)
 Das Warten blockiert nie unbegrenzt. Der Agent kann es beliebig oft wiederholen, auch aus
 einer neuen Konversation heraus, denn der gesamte Zustand liegt in der Datenbank.
 
+### Umsetzung (Phase 5, Schritt 2)
+
+- `/mcp` (GET/POST/DELETE) mountet `createMcpHandler` über `toNodeHandler` im Fastify-Prozess.
+  Pro Anfrage: Host-Guard → Origin-Prüfung (fremdes `Origin` → 403) → `requireAgent`
+  (Bearer, sonst 401) → `McpServer` aus der Factory, gebunden an diesen Agenten. Das Token
+  selbst wird nicht an die Tools weitergereicht.
+- Body-Limit von `/mcp`: ein base64-Bild der Maximalgröße plus 1 MB. Das dekodierte Bild ist
+  wie beim Upload auf 20 MB begrenzt, es gilt dieselbe Prüfung (Magic Bytes, Dekodierung).
+- Ausgaben in snake_case mit sprechenden IDs (`project_id`, `session_id`, `ui_id` statt
+  interner UI-View-ID). `editor_url` zeigt auf `<OPSIS_PUBLIC_URL>/sessions/<id>`
+  (Standard aus Host und Port).
+- Fehler: `isError: true`, Text-Inhalt `{"error":{"code","message","details?"}}`.
+- Abweichungen von der Tabelle: `intent` ist keine Eingabe, er ergibt sich aus dem Head der
+  UI (`create`/`revise`). `mime_type` ist optional und nur informativ, maßgeblich ist der
+  Inhalt. Zusätzlich gibt es `variant_label` und `title`. `get_screenshot` mit
+  `include_image` liefert ein WebP-Thumbnail (längere Kante ≤ 1568 px).
+- `opsis_wait_for_specification` (Schritt 3), Ressourcen (Schritt 4) und
+  `opsis_request_upload` (Schritt 5) folgen.
+
 ## 4. Ressourcen
 
 | URI-Template                                                     | Inhalt                                         | MIME             |

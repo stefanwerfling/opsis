@@ -11,6 +11,8 @@ export interface OpsisConfig {
   readonly logLevel: string;
   /** Built web UI; undefined when it has not been built (API-only operation). */
   readonly webRoot: string | undefined;
+  /** Base URL in links handed to agents; default derived from host and port. */
+  readonly publicUrl: string;
 }
 
 /** packages/server/{src,dist}/config.* → packages/web/dist */
@@ -28,14 +30,24 @@ const parsePort = (value: string | undefined, fallback: number): number => {
   return port;
 };
 
-export const loadConfig = (env: NodeJS.ProcessEnv = process.env): OpsisConfig => ({
-  host: env['OPSIS_HOST'] ?? '127.0.0.1',
-  port: parsePort(env['OPSIS_PORT'], 4777),
-  dataDir: resolve(env['OPSIS_DATA_DIR'] ?? 'data'),
-  allowedHosts: (env['OPSIS_ALLOWED_HOSTS'] ?? '')
-    .split(',')
-    .map((host) => host.trim().toLowerCase())
-    .filter((host) => host.length > 0),
-  logLevel: env['OPSIS_LOG_LEVEL'] ?? 'info',
-  webRoot: resolveWebRoot(env['OPSIS_WEB_DIR']),
-});
+const defaultPublicUrl = (host: string, port: number): string => {
+  const shown = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host.includes(':') ? `[${host}]` : host;
+  return `http://${shown}:${String(port)}`;
+};
+
+export const loadConfig = (env: NodeJS.ProcessEnv = process.env): OpsisConfig => {
+  const host = env['OPSIS_HOST'] ?? '127.0.0.1';
+  const port = parsePort(env['OPSIS_PORT'], 4777);
+  return {
+    host,
+    port,
+    publicUrl: env['OPSIS_PUBLIC_URL'] ?? defaultPublicUrl(host, port),
+    dataDir: resolve(env['OPSIS_DATA_DIR'] ?? 'data'),
+    allowedHosts: (env['OPSIS_ALLOWED_HOSTS'] ?? '')
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter((host) => host.length > 0),
+    logLevel: env['OPSIS_LOG_LEVEL'] ?? 'info',
+    webRoot: resolveWebRoot(env['OPSIS_WEB_DIR']),
+  };
+};

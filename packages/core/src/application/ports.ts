@@ -196,6 +196,8 @@ export interface InspectedImage {
 /** Validates real image content (magic bytes + full decode), independent of declared MIME types. */
 export interface ImageInspector {
   inspect(bytes: Uint8Array): Promise<InspectedImage>;
+  /** A reduced WebP copy whose longer edge is at most `maxEdge` (for agents, MCP). */
+  thumbnail(bytes: Uint8Array, maxEdge: number): Promise<Uint8Array>;
 }
 
 /** Draws the annotation marks onto a screenshot; returns a PNG. */

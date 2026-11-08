@@ -5,7 +5,7 @@ const apiTarget = process.env['OPSIS_API_URL'] ?? 'http://127.0.0.1:4777';
 export default defineConfig({
   resolve: {
     // Use the TypeScript sources of @opsis/core directly (no prior build needed).
-    conditions: ['source'],
+    conditions: ['@opsis/source'],
   },
   server: {
     host: '127.0.0.1',

@@ -7,7 +7,7 @@
     "declarationMap": false,
     "lib": ["ES2024", "DOM"],
     "types": ["node"],
-    "customConditions": ["source"]
+    "customConditions": ["@opsis/source"]
   },
   "include": [
     "packages/core/src",

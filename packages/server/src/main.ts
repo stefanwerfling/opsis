@@ -26,6 +26,7 @@ export const startServer = async (): Promise<void> => {
     ctx,
     bus,
     allowedHosts: config.allowedHosts,
+    publicUrl: config.publicUrl,
     logger: { level: config.logLevel },
     ...(config.webRoot === undefined ? {} : { webRoot: config.webRoot }),
   });

@@ -24,6 +24,14 @@ const isAllowedMime = (mime: string): mime is ImageMimeType =>
  * corrupt or oversized files (decompression bombs) before anything is stored.
  */
 export class SharpImageInspector implements ImageInspector {
+  async thumbnail(bytes: Uint8Array, maxEdge: number): Promise<Uint8Array> {
+    const output = await sharp(bytes, { limitInputPixels: IMAGE_LIMITS.maxPixels, animated: false })
+      .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+    return new Uint8Array(output);
+  }
+
   async inspect(bytes: Uint8Array): Promise<InspectedImage> {
     if (bytes.byteLength > IMAGE_LIMITS.maxBytes) {
       throw new OpsisError('PAYLOAD_TOO_LARGE', `Image exceeds ${IMAGE_LIMITS.maxBytes} bytes`);

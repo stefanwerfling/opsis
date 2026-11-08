@@ -6,12 +6,12 @@
   "description": "OPSIS domain and application layer (no IO, no frameworks)",
   "exports": {
     ".": {
-      "source": "./src/index.ts",
+      "@opsis/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./browser": {
-      "source": "./src/browser.ts",
+      "@opsis/source": "./src/browser.ts",
       "types": "./dist/browser.d.ts",
       "default": "./dist/browser.js"
     }

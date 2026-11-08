@@ -7,6 +7,7 @@ import { MULTIPART_LIMITS, registerApiRoutes } from './http/api-routes.js';
 import { errorHandler } from './http/errors.js';
 import { registerEventsRoute } from './http/events-route.js';
 import { createHostGuard } from './http/host-guard.js';
+import { registerMcpRoute } from './mcp/route.js';
 
 export interface BuildAppOptions {
   readonly ctx: AppContext;
@@ -15,6 +16,8 @@ export interface BuildAppOptions {
   readonly logger?: FastifyServerOptions['logger'];
   /** Directory of the built web UI (packages/web/dist). Without it only the API is served. */
   readonly webRoot?: string;
+  /** Public base URL for links handed to agents (editor URLs). */
+  readonly publicUrl?: string;
 }
 
 /**
@@ -35,7 +38,7 @@ export const WEB_CSP = [
 
 export const LOCAL_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'] as const;
 
-/** Builds the HTTP application (REST + SSE). The MCP endpoint is mounted here in phase 5. */
+/** Builds the HTTP application: REST, SSE, the MCP endpoint and the web UI. */
 export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstance> => {
   const app = fastify({
     logger: options.logger ?? false,
@@ -46,6 +49,11 @@ export const buildApp = async (options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(multipart, { limits: MULTIPART_LIMITS });
   registerApiRoutes(app, options.ctx);
   registerEventsRoute(app, options.bus);
+  const allowedHosts = [...LOCAL_HOSTNAMES, ...(options.allowedHosts ?? [])];
+  registerMcpRoute(app, options.ctx, {
+    baseUrl: (options.publicUrl ?? 'http://127.0.0.1:4777').replace(/\/+$/, ''),
+    allowedOriginHosts: allowedHosts,
+  });
 
   app.addHook('onSend', async (_request, reply) => {
     reply.header('x-content-type-options', 'nosniff');

@@ -31,7 +31,7 @@ const main = async (argv: readonly string[]): Promise<number> => {
   const db = Database.open(join(config.dataDir, 'opsis.db'));
   try {
     const ctx = createAppContext(db, config.dataDir, new EventBus(() => undefined));
-    return runAgentCommand(ctx, args, io, `http://${config.host}:${String(config.port)}/mcp`);
+    return runAgentCommand(ctx, args, io, `${config.publicUrl}/mcp`);
   } catch (error) {
     io.err(error instanceof Error ? `Error: ${error.message}` : String(error));
     return 1;

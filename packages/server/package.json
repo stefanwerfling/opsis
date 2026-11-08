@@ -14,6 +14,8 @@
   "dependencies": {
     "@fastify/multipart": "^10.1.8",
     "@fastify/static": "^10.1.10",
+    "@modelcontextprotocol/node": "^2.1.2",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@opsis/core": "*",
     "fastify": "^5.12.8",
     "file-type": "^22.3.0",
@@ -24,6 +26,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
     "@types/yauzl": "^3.4.0",
     "@types/yazl": "^3.3.1"
   }
