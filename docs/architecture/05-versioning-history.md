@@ -117,6 +117,13 @@ ihn in einen neuen Draft (siehe §3).
 | Screenshot annotiert   | `sharp`-Composite aus Original und SVG-Overlay (Rahmen und Namen, Farbe nach Tiefe)                       |
 | ZIP                    | `manifest.json` (Format-Version, IDs, sha256 je Datei) + alle obigen Dateien                              |
 
+Umsetzung (Phase 3): `GET /api/v1/versions/:id/export/{json|specification|prompt|screenshot|annotated}`
+liefert die Datei als `attachment` (Dateiname `<ui-id>-v<n>…`). Bei Screenshots kann
+`?screenshotId=` gewählt werden, sonst gilt der primäre. Alles wird aus dem unveränderlichen
+Snapshot, dem gespeicherten Prompt und den Blobs erzeugt; der JSON-Export ist deterministisch.
+Ein Prompt-Download zählt nicht als Auslieferung an den Agenten (E3). Die Farben der
+Annotation stimmen mit denen des Editors überein (`DEPTH_COLORS` im Core).
+
 **Import** prüft die Formatversion, alle Hashes und die Schemas. Erlaubt sind nur bekannte
 Pfade im ZIP, maximale Gesamtgröße und Anzahl der Einträge sind begrenzt. Importierte
 Versionen werden als neue unveränderliche Datensätze angelegt. Original-IDs bleiben

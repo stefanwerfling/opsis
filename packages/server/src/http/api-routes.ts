@@ -17,6 +17,7 @@ import {
   confirmAssignment,
   createProject,
   createUiView,
+  exportVersion,
   findUiView,
   getDraft,
   getImplementationPrompt,
@@ -48,6 +49,8 @@ const actor = LOCAL_HUMAN;
 const ProjectParams = z.object({ projectId: z.string().min(1).max(64) });
 const UiParams = ProjectParams.extend({ uiId: z.string().min(1).max(100) });
 const IdParams = z.object({ id: z.string().min(1).max(64) });
+const ExportParams = IdParams.extend({ kind: z.string().min(1).max(32) });
+const ExportQuery = z.strictObject({ screenshotId: z.string().optional() });
 
 const params = <S extends z.ZodType>(schema: S, request: FastifyRequest): z.output<S> =>
   parseInput(schema, request.params);
@@ -187,6 +190,16 @@ export const registerApiRoutes = (app: FastifyInstance, ctx: AppContext): void =
     // The local human reads the prompt; only an agent's retrieval marks a session delivered.
     const prompt = getImplementationPrompt(ctx, actor, { versionId: params(IdParams, request).id });
     return reply.type('text/markdown; charset=utf-8').send(prompt.markdown);
+  });
+
+  app.get('/api/v1/versions/:id/export/:kind', async (request, reply) => {
+    const { id, kind } = params(ExportParams, request);
+    const file = await exportVersion(ctx, actor, id, { kind, ...parseInput(ExportQuery, request.query) });
+    return reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', `attachment; filename="${file.filename}"`)
+      .header('x-content-type-options', 'nosniff')
+      .send(Buffer.from(file.bytes));
   });
 
   // ── Drafts (editor) ───────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import type {
   Clock,
   EventPublisher,
   Hasher,
+  ImageAnnotator,
   ImageInspector,
   Repositories,
   Transactor,
@@ -22,6 +23,7 @@ export interface AppContext {
   readonly events: EventPublisher;
   readonly access: AccessPolicy;
   readonly images: ImageInspector;
+  readonly annotator: ImageAnnotator;
   readonly blobs: BlobStore;
   readonly hash: Hasher;
 }

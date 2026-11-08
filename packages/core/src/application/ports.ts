@@ -5,6 +5,7 @@ import type { DomainEvent } from '../domain/events.js';
 import type { Project } from '../domain/project.js';
 import type { ImageMimeType, Screenshot } from '../domain/screenshot.js';
 import type { Session, SessionStatus } from '../domain/session.js';
+import type { Annotation } from '../domain/specification/annotation.js';
 import type { UiPathChange, UiView } from '../domain/ui-view.js';
 import type {
   ComponentRevision,
@@ -152,6 +153,11 @@ export interface InspectedImage {
 /** Validates real image content (magic bytes + full decode), independent of declared MIME types. */
 export interface ImageInspector {
   inspect(bytes: Uint8Array): Promise<InspectedImage>;
+}
+
+/** Draws the annotation marks onto a screenshot; returns a PNG. */
+export interface ImageAnnotator {
+  annotate(bytes: Uint8Array, annotation: Annotation): Promise<Uint8Array>;
 }
 
 /** Content-addressed binary storage. Writes are atomic and happen before the DB commit. */

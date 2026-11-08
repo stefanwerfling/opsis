@@ -1,3 +1,4 @@
+export * from './annotation.js';
 export * from './canonical-json.js';
 export * from './labels.js';
 export * from './markdown.js';

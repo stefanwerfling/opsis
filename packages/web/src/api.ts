@@ -2,6 +2,7 @@ import type {
   CreateProjectInput,
   Draft,
   DraftOperation,
+  ExportKind,
   CreateUiViewInput,
   ChangeUiPathInput,
   Project,
@@ -142,6 +143,9 @@ export const createApi = (fetchImpl: Fetch = (input, init) => fetch(input, init)
       requestText(base + pathTo('versions', versionId, 'specification') + '?format=markdown'),
     getSpecificationJson: (versionId: string) =>
       request<unknown>('GET', base + pathTo('versions', versionId, 'specification') + '?format=json'),
+    /** Download URL of an export (architecture 05 §7); served as an attachment. */
+    exportUrl: (versionId: string, kind: ExportKind, screenshotId?: string) =>
+      base + pathTo('versions', versionId, 'export', kind) + query({ screenshotId }),
 
     getDraft: (sessionId: string) => request<Draft>('GET', base + pathTo('sessions', sessionId, 'draft')),
     changeDraft: (

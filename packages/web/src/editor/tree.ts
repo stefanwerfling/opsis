@@ -1,7 +1,6 @@
-import { childrenOf, subtreeIds, type DraftComponent } from '@opsis/core/browser';
+import { childrenOf, depthColor, subtreeIds, type DraftComponent } from '@opsis/core/browser';
 import { h, replaceChildren } from '../dom.js';
 import { t } from '../i18n/i18n.js';
-import { depthColor } from './canvas.js';
 import type { Editor } from './editor.js';
 
 type DropZone = 'before' | 'inside' | 'after';

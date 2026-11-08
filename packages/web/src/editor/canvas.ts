@@ -14,22 +14,10 @@ import {
   type Rect,
   type ResizeHandle,
   type Viewport,
+  depthColor,
 } from '@opsis/core/browser';
 import type { CanvasInteraction, ScreenshotViewer } from '../components/viewer.js';
 import type { Editor } from './editor.js';
-
-/** Colours by hierarchy depth; repeat for deeper levels. Chosen to stand out on screenshots. */
-export const DEPTH_COLORS = [
-  '#e8590c',
-  '#1c7ed6',
-  '#2f9e44',
-  '#ae3ec9',
-  '#f08c00',
-  '#0c8599',
-  '#e03131',
-  '#5f3dc4',
-];
-export const depthColor = (depth: number): string => DEPTH_COLORS[depth % DEPTH_COLORS.length] ?? '#e8590c';
 
 /** Hit tolerance for resize handles, in CSS pixels. */
 const HANDLE_HIT_PX = 7;

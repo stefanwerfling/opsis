@@ -7,6 +7,7 @@ import { Database } from '../infrastructure/db/database.js';
 import { createRepositories } from '../infrastructure/db/repositories.js';
 import { FileBlobStore } from '../infrastructure/files/blob-store.js';
 import { nodeHasher } from '../infrastructure/hash.js';
+import { SharpImageAnnotator } from '../infrastructure/files/annotator.js';
 import { SharpImageInspector } from '../infrastructure/files/image-inspector.js';
 
 export interface TestEnv {
@@ -44,6 +45,7 @@ export const createTestEnv = (): TestEnv => {
     events: bus,
     access: new AccessPolicy(repos.grants),
     images: new SharpImageInspector(),
+    annotator: new SharpImageAnnotator(),
     blobs,
     hash: nodeHasher,
   };

@@ -944,6 +944,12 @@ label.check {
   margin-top: 16px;
 }
 
+.downloads {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
 .version-tabs {
   justify-content: space-between;
   margin: 16px 0 8px;

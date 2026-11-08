@@ -12,6 +12,10 @@ const TAB_LABELS = {
   json: 'version.json',
 } as const;
 
+/** The server names the file (Content-Disposition); `download` keeps the SPA router out. */
+const download = (href: string, label: string) =>
+  h('a', { class: 'button', attrs: { href, download: '' } }, label);
+
 /** A released UI version (read-only): prompt, readable specification and JSON. */
 export const versionView: View = (root, params) => {
   const versionId = params['versionId'] ?? '';
@@ -134,6 +138,23 @@ export const versionView: View = (root, params) => {
             h('dt', {}, t('version.changeDescription')),
             h('dd', {}, uiVersion.changeDescription),
           ],
+        ),
+        h(
+          'nav',
+          { class: 'row downloads', attrs: { 'aria-label': t('version.downloads') } },
+          download(api.exportUrl(versionId, 'json'), t('version.exportJson')),
+          download(api.exportUrl(versionId, 'specification'), t('version.exportSpecification')),
+          download(api.exportUrl(versionId, 'prompt'), t('version.exportPrompt')),
+          ...snapshot.screenshots.flatMap((screenshot) => [
+            download(
+              api.exportUrl(versionId, 'screenshot', screenshot.id),
+              t('version.exportScreenshot', { no: screenshot.sequenceNo }),
+            ),
+            download(
+              api.exportUrl(versionId, 'annotated', screenshot.id),
+              t('version.exportAnnotated', { no: screenshot.sequenceNo }),
+            ),
+          ]),
         ),
       ],
     }),

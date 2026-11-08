@@ -302,6 +302,23 @@ describe('release API', () => {
     });
     expect(prompt.body).toContain('# Implementation prompt: X (ui-x)');
 
+    const exported = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/export/annotated`,
+      headers: HOST,
+    });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers['content-type']).toBe('image/png');
+    expect(exported.headers['content-disposition']).toBe(
+      'attachment; filename="ui-x-v1-screenshot-1-annotated.png"',
+    );
+    const badKind = await app.inject({
+      method: 'GET',
+      url: `/api/v1/versions/${uiVersion.id}/export/zip`,
+      headers: HOST,
+    });
+    expect(badKind.statusCode).toBe(400);
+
     const reopened = await post(`/api/v1/sessions/${sessionId}/reopen`, { reason: 'typo' });
     expect(json<{ status: string }>(reopened.body).status).toBe('in_progress');
 
