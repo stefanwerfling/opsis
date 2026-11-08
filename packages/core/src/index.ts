@@ -22,6 +22,7 @@ export * from './application/access-policy.js';
 export * from './application/agents.js';
 export * from './application/context.js';
 export * from './application/drafts.js';
+export * from './application/proposals.js';
 export * from './application/exports.js';
 export * from './application/event-bus.js';
 export * from './application/import.js';

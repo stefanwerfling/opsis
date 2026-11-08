@@ -27,6 +27,14 @@ import {
   getProject,
   getScreenshot,
   getSession,
+  clampRect,
+  getDraft,
+  proposeComponents,
+  COMPONENT_KINDS,
+  SPEC_GROUPS,
+  SPEC_GROUP_NAMES,
+  MAX_PROPOSED_COMPONENTS,
+  type Draft,
   getSpecification,
   getUiView,
   isOpsisError,
@@ -257,7 +265,8 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
       'OPSIS turns screenshots into human-approved UI specifications. Submit a screenshot ' +
       '(opsis_submit_screenshot), give the editor_url to the human, wait with ' +
       'opsis_wait_for_specification, then fetch opsis_get_implementation_prompt and implement it. ' +
-      'Agents cannot edit or release specifications.',
+      'Before the human starts the review you may propose components (opsis_propose_components); they stay ' +
+      'unconfirmed until the human confirms them. Agents cannot edit a draft under review or release.',
   });
   const register = <I extends z.ZodObject>(
     target: McpServer,
@@ -588,35 +597,76 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
     'opsis_get_screenshot',
     {
       title: 'Get screenshot',
-      description: 'Screenshot metadata and the status of its session; optionally a reduced image.',
+      description:
+        'Screenshot metadata and the status of its session; optionally a reduced image. With crop, only that ' +
+        'part (original pixels) – use it to look at details of tall screenshots. Original coordinates = ' +
+        'image.x + thumbnail coordinate × image.scale.',
       input: z.object({
         screenshot_id: Id,
         include_image: z
           .boolean()
           .optional()
           .describe(`Adds a WebP thumbnail (max. ${String(THUMBNAIL_EDGE)} px)`),
+        crop: z
+          .object({
+            x: z.number().min(0),
+            y: z.number().min(0),
+            width: z.number().positive(),
+            height: z.number().positive(),
+          })
+          .optional()
+          .describe('Part of the screenshot in original pixels (implies include_image)'),
       }),
-      output: z.object({ screenshot: ScreenshotOut, session_status: z.enum(SESSION_STATUSES).nullable() }),
+      output: z.object({
+        screenshot: ScreenshotOut,
+        session_status: z.enum(SESSION_STATUSES).nullable(),
+        image: z
+          .object({
+            x: z.number(),
+            y: z.number(),
+            width: z.number(),
+            height: z.number(),
+            thumbnail_width: z.number(),
+            thumbnail_height: z.number(),
+            scale: z.number().describe('original pixels per thumbnail pixel'),
+          })
+          .optional(),
+      }),
       readOnly: true,
     },
-    async ({ screenshot_id, include_image }) => {
+    async ({ screenshot_id, include_image, crop }) => {
       const screenshot = getScreenshot(ctx, actor, screenshot_id);
       const status =
         screenshot.sessionId === null
           ? null
           : (ctx.repos.sessions.findById(screenshot.sessionId)?.status ?? null);
       const extra: ContentBlock[] = [];
-      if (include_image === true) {
+      let image: Record<string, number> | undefined;
+      if (include_image === true || crop !== undefined) {
         const { bytes } = await readScreenshotImage(ctx, actor, screenshot_id);
-        const thumbnail = await ctx.images.thumbnail(bytes, THUMBNAIL_EDGE);
+        const area = clampRect(
+          crop ?? { x: 0, y: 0, width: screenshot.width, height: screenshot.height },
+          screenshot,
+        );
+        const thumbnail = await ctx.images.thumbnail(bytes, THUMBNAIL_EDGE, area);
         extra.push({
           type: 'image',
           mimeType: 'image/webp',
-          data: Buffer.from(thumbnail).toString('base64'),
+          data: Buffer.from(thumbnail.bytes).toString('base64'),
         });
+        image = {
+          ...area,
+          thumbnail_width: thumbnail.width,
+          thumbnail_height: thumbnail.height,
+          scale: Math.round((area.width / thumbnail.width) * 1000) / 1000,
+        };
       }
       return {
-        data: { screenshot: presentScreenshot(ctx, screenshot), session_status: status },
+        data: {
+          screenshot: presentScreenshot(ctx, screenshot),
+          session_status: status,
+          ...(image === undefined ? {} : { image }),
+        },
         text: `Screenshot ${screenshot.id}: ${String(screenshot.width)}×${String(screenshot.height)} ${screenshot.mimeType}`,
         extra,
       };
@@ -705,6 +755,183 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
           next_action: nextAction(session.status),
         },
         text: `${session.status}. ${nextAction(session.status)}`,
+      };
+    },
+  );
+
+  register(
+    server,
+    'opsis_list_sessions',
+    {
+      title: 'List sessions',
+      description:
+        'Sessions of a project, newest first – open ones by default. Use it to find a screenshot a human ' +
+        'uploaded in the browser (status "awaiting_review").',
+      input: z.object({
+        project_id: ProjectId,
+        status: z
+          .array(z.enum(SESSION_STATUSES))
+          .max(SESSION_STATUSES.length)
+          .optional()
+          .describe('Filter; default: all open statuses'),
+      }),
+      output: z.object({ sessions: z.array(SessionOut) }),
+      readOnly: true,
+    },
+    ({ project_id, status }) => {
+      const sessions = listSessions(ctx, actor, {
+        projectId: project_id,
+        statuses: status ?? SESSION_STATUSES.filter((value) => !isTerminal(value)),
+      }).map((session) => presentSession(p, session));
+      return { data: { sessions }, text: `${String(sessions.length)} sessions` };
+    },
+  );
+
+  register(
+    server,
+    'opsis_get_draft',
+    {
+      title: 'Get draft',
+      description:
+        'The current, unreleased specification draft of a session: components with parent, kind, markings ' +
+        '(original screenshot pixels) and specification values with their origin. Not a released ' +
+        'specification – implement only what opsis_get_implementation_prompt returns.',
+      input: z.object({ session_id: SessionId }),
+      output: z.object({
+        session_id: z.string(),
+        status: z.enum(SESSION_STATUSES),
+        revision: z.number(),
+        components: z.array(z.looseObject({ component_id: z.string() })),
+      }),
+      readOnly: true,
+    },
+    ({ session_id }) => {
+      const { session } = getSession(ctx, actor, session_id);
+      const draft = getDraft(ctx, actor, session_id);
+      return {
+        data: {
+          session_id: session.id,
+          status: session.status,
+          revision: draft.revision,
+          components: presentDraftComponents(draft),
+        },
+        text: `Draft revision ${String(draft.revision)}: ${String(draft.components.length)} components (${session.status})`,
+      };
+    },
+  );
+
+  register(
+    server,
+    'opsis_propose_components',
+    {
+      title: 'Propose components',
+      description:
+        'Describe what you see on the screenshots of a session as proposed components, before the human ' +
+        'starts the review (status "awaiting_review"). Look at the image first (opsis_get_screenshot with ' +
+        'include_image; regions are in ORIGINAL screenshot pixels – scale thumbnail coordinates by ' +
+        'width/thumbnail_width). Every specification value is stored as "auto_detected" and must be confirmed ' +
+        'by the human. Describe only what is visible; leave unknown fields out instead of guessing. ' +
+        `Adds components (max. ${String(MAX_PROPOSED_COMPONENTS)} per call; parents before children); call ` +
+        'again to add more.',
+      input: z.object({
+        session_id: SessionId,
+        components: z
+          .array(
+            z.object({
+              ref: z.string().min(1).max(64).describe('Your own id for this component, unique in the call'),
+              parent_ref: z
+                .string()
+                .min(1)
+                .max(64)
+                .optional()
+                .describe('ref of an EARLIER component in this call'),
+              parent_id: Id.optional().describe('Existing component of the draft (cmp_…)'),
+              name: z.string().min(1).max(200).describe('Short, human name, e.g. "Header", "Login button"'),
+              kind: z.enum(COMPONENT_KINDS).optional(),
+              region: z
+                .object({
+                  screenshot_id: Id,
+                  x: z.number(),
+                  y: z.number(),
+                  width: z.number().positive(),
+                  height: z.number().positive(),
+                })
+                .optional()
+                .describe('Bounding box in original screenshot pixels'),
+              spec: z
+                .object(
+                  Object.fromEntries(
+                    SPEC_GROUP_NAMES.map((group) => [
+                      group,
+                      z
+                        .object(
+                          Object.fromEntries(
+                            SPEC_GROUPS[group].map((field) => [
+                              field,
+                              z.string().min(1).max(10_000).optional(),
+                            ]),
+                          ),
+                        )
+                        .optional(),
+                    ]),
+                  ),
+                )
+                .optional()
+                .describe(
+                  'Specification text per group and field, e.g. {"general":{"description":"…","purpose":"…"},' +
+                    '"interaction":{"click":"…"}}. Groups: ' +
+                    SPEC_GROUP_NAMES.map((group) => `${group} (${SPEC_GROUPS[group].join(', ')})`).join('; '),
+                ),
+            }),
+          )
+          .min(1)
+          .max(MAX_PROPOSED_COMPONENTS),
+      }),
+      output: z.object({
+        session_id: z.string(),
+        revision: z.number(),
+        created: z.array(z.object({ ref: z.string(), component_id: z.string() })),
+        component_count: z.number(),
+        spec_values: z.number(),
+        editor_url: z.string(),
+      }),
+      readOnly: false,
+      idempotent: false,
+    },
+    ({ session_id, components }) => {
+      const result = proposeComponents(ctx, actor, session_id, {
+        components: components.map((component) => ({
+          ref: component.ref,
+          ...(component.parent_ref === undefined ? {} : { parentRef: component.parent_ref }),
+          ...(component.parent_id === undefined ? {} : { parentId: component.parent_id }),
+          name: component.name,
+          ...(component.kind === undefined ? {} : { kind: component.kind }),
+          ...(component.region === undefined
+            ? {}
+            : {
+                region: {
+                  screenshotId: component.region.screenshot_id,
+                  x: component.region.x,
+                  y: component.region.y,
+                  width: component.region.width,
+                  height: component.region.height,
+                },
+              }),
+          ...(component.spec === undefined ? {} : { spec: component.spec }),
+        })),
+      });
+      return {
+        data: {
+          session_id,
+          revision: result.draft.revision,
+          created: result.created.map((entry) => ({ ref: entry.ref, component_id: entry.componentId })),
+          component_count: result.draft.components.length,
+          spec_values: result.specValues,
+          editor_url: editorUrl(p, session_id),
+        },
+        text:
+          `Proposed ${String(result.created.length)} components with ${String(result.specValues)} values ` +
+          `(auto_detected). The human reviews them at ${editorUrl(p, session_id)}.`,
       };
     },
   );
@@ -874,3 +1101,21 @@ export const createOpsisMcpServer = (p: McpServerOptions, actor: Actor): McpServ
   registerResources(server, p, actor, p.onInternalError);
   return server;
 };
+
+/** Draft components for agents: snake_case ids, spec values with their origin. */
+const presentDraftComponents = (draft: Draft) =>
+  draft.components.map((component) => ({
+    component_id: component.componentId,
+    parent_id: component.parentId,
+    order: component.order,
+    name: component.name,
+    kind: component.kind,
+    regions: component.regions.map((region) => ({
+      screenshot_id: region.screenshotId,
+      x: region.x,
+      y: region.y,
+      width: region.width,
+      height: region.height,
+    })),
+    spec: component.spec,
+  }));

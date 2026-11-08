@@ -128,6 +128,9 @@ const TOOLS = [
   'opsis_list_screenshots',
   'opsis_get_session',
   'opsis_get_session_status',
+  'opsis_list_sessions',
+  'opsis_get_draft',
+  'opsis_propose_components',
   'opsis_wait_for_specification',
   'opsis_get_specification',
   'opsis_get_implementation_prompt',
@@ -161,8 +164,9 @@ describe('MCP endpoint', () => {
       expect(tool.annotations?.readOnlyHint, tool.name).toBeTypeOf('boolean');
       expect(tool.description, tool.name).not.toBe('');
     }
-    // No tool edits or releases a specification (principle 10).
-    expect(tools.some((tool) => /release|draft|component/.test(tool.name))).toBe(false);
+    // No tool edits or releases a specification (principle 10); proposals are the only
+    // draft write, and only before the review (see the proposal test).
+    expect(tools.some((tool) => /release|edit|change_draft|update_draft|delete/.test(tool.name))).toBe(false);
   });
 
   it('runs the agent flow: submit → human releases → prompt → delivered', async () => {
@@ -304,6 +308,102 @@ describe('MCP endpoint', () => {
     expect(status.status).toBe('awaiting_review');
   });
 
+  it('lets an agent propose components before the review, as auto_detected values', async () => {
+    const { client } = await newAgent('a');
+    const { project } = await ok<{ project: { project_id: string } }>(client, 'opsis_create_project', {
+      name: 'Shop',
+    });
+    const submitted = await ok<{ session_id: string; screenshot_id: string }>(
+      client,
+      'opsis_submit_screenshot',
+      {
+        project_id: project.project_id,
+        ui_path: '/x',
+        image_base64: await base64Image(),
+      },
+    );
+    const listed = await ok<{ sessions: { session_id: string; status: string }[] }>(
+      client,
+      'opsis_list_sessions',
+      {
+        project_id: project.project_id,
+      },
+    );
+    expect(listed.sessions).toMatchObject([{ session_id: submitted.session_id, status: 'awaiting_review' }]);
+
+    // A crop of the screenshot with the scale needed to compute original coordinates.
+    const cropped = await call(client, 'opsis_get_screenshot', {
+      screenshot_id: submitted.screenshot_id,
+      crop: { x: 10, y: 20, width: 100, height: 50 },
+    });
+    expect(cropped.content.map((block) => block.type)).toEqual(['text', 'image']);
+    expect(cropped.structuredContent?.['image']).toMatchObject({
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+      thumbnail_width: 100,
+      thumbnail_height: 50,
+      scale: 1,
+    });
+
+    const proposed = await ok<{ created: { ref: string; component_id: string }[]; spec_values: number }>(
+      client,
+      'opsis_propose_components',
+      {
+        session_id: submitted.session_id,
+        components: [
+          {
+            ref: 'header',
+            name: 'Header',
+            kind: 'container',
+            region: { screenshot_id: submitted.screenshot_id, x: 0, y: 0, width: 320, height: 40 },
+            spec: { general: { description: 'Top bar with the logo', purpose: 'Navigation' } },
+          },
+          {
+            ref: 'logo',
+            parent_ref: 'header',
+            name: 'Logo',
+            region: { screenshot_id: submitted.screenshot_id, x: 8, y: 8, width: 60, height: 24 },
+            spec: { interaction: { click: 'Goes to the start page' } },
+          },
+        ],
+      },
+    );
+    expect(proposed.created.map((entry) => entry.ref)).toEqual(['header', 'logo']);
+    expect(proposed.spec_values).toBe(3);
+
+    const draft = await ok<{
+      revision: number;
+      components: { component_id: string; parent_id: string | null; spec: Record<string, unknown> }[];
+    }>(client, 'opsis_get_draft', { session_id: submitted.session_id });
+    expect(draft.revision).toBe(1);
+    const [header, logo] = proposed.created.map((entry) =>
+      draft.components.find((component) => component.component_id === entry.component_id),
+    );
+    expect(logo?.parent_id).toBe(header?.component_id);
+    expect(header?.spec).toEqual({
+      general: {
+        description: { value: 'Top bar with the logo', origin: 'auto_detected' },
+        purpose: { value: 'Navigation', origin: 'auto_detected' },
+      },
+    });
+    // The session is still waiting for the human – proposing does not start the review.
+    expect(getSession(env.ctx, LOCAL_HUMAN, submitted.session_id).session.status).toBe('awaiting_review');
+
+    // Once the human edits, the agent can no longer write into the draft.
+    changeDraft(env.ctx, LOCAL_HUMAN, submitted.session_id, {
+      baseRevision: 1,
+      operations: [{ op: 'updateComponent', componentId: header?.component_id ?? '', name: 'Top bar' }],
+    });
+    expect(
+      await errorCode(client, 'opsis_propose_components', {
+        session_id: submitted.session_id,
+        components: [{ ref: 'late', name: 'Late' }],
+      }),
+    ).toBe('INVALID_TRANSITION');
+  });
+
   it('hides internal error details from the agent', async () => {
     const { client } = await newAgent('a');
     env.ctx.repos.projects.list = () => {
@@ -354,6 +454,12 @@ describe('MCP endpoint', () => {
       ['opsis_list_screenshots', { project_id: projectId }],
       ['opsis_get_session', { session_id: submitted.session_id }],
       ['opsis_get_session_status', { session_id: submitted.session_id }],
+      ['opsis_list_sessions', { project_id: projectId }],
+      ['opsis_get_draft', { session_id: submitted.session_id }],
+      [
+        'opsis_propose_components',
+        { session_id: submitted.session_id, components: [{ ref: 'a', name: 'A' }] },
+      ],
       ['opsis_wait_for_specification', { session_id: submitted.session_id, timeout_seconds: 1 }],
       ['opsis_get_specification', { session_id: submitted.session_id }],
       ['opsis_get_specification', { version_id: versionId, format: 'markdown' }],

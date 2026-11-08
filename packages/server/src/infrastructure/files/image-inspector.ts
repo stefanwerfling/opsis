@@ -24,12 +24,25 @@ const isAllowedMime = (mime: string): mime is ImageMimeType =>
  * corrupt or oversized files (decompression bombs) before anything is stored.
  */
 export class SharpImageInspector implements ImageInspector {
-  async thumbnail(bytes: Uint8Array, maxEdge: number): Promise<Uint8Array> {
-    const output = await sharp(bytes, { limitInputPixels: IMAGE_LIMITS.maxPixels, animated: false })
+  async thumbnail(
+    bytes: Uint8Array,
+    maxEdge: number,
+    crop?: { x: number; y: number; width: number; height: number },
+  ): Promise<{ bytes: Uint8Array; width: number; height: number }> {
+    let image = sharp(bytes, { limitInputPixels: IMAGE_LIMITS.maxPixels, animated: false });
+    if (crop) {
+      image = image.extract({
+        left: Math.round(crop.x),
+        top: Math.round(crop.y),
+        width: Math.max(1, Math.round(crop.width)),
+        height: Math.max(1, Math.round(crop.height)),
+      });
+    }
+    const { data, info } = await image
       .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })
-      .toBuffer();
-    return new Uint8Array(output);
+      .toBuffer({ resolveWithObject: true });
+    return { bytes: new Uint8Array(data), width: info.width, height: info.height };
   }
 
   async inspect(bytes: Uint8Array): Promise<InspectedImage> {

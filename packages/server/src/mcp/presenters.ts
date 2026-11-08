@@ -55,6 +55,10 @@ export const nextAction = (status: SessionStatus): string => {
     case 'uploading':
       return 'Upload the screenshot (opsis_submit_screenshot).';
     case 'awaiting_review':
+      return (
+        'Waiting for the human. If you were asked to describe the UI, propose components first ' +
+        '(opsis_propose_components); then call opsis_wait_for_specification until done.'
+      );
     case 'in_progress':
       return 'A human is specifying the UI. Call opsis_wait_for_specification until done.';
     case 'ready':
